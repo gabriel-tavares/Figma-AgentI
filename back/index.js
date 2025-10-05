@@ -1503,7 +1503,7 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
           
           // Configurar parâmetros baseado no modelo
           const isGPT5Model = /^gpt-5/i.test(MODELO_TEXTO);
-          const requestBody: any = {
+          const requestBody = {
             model: MODELO_TEXTO,
             messages: [{ role: "user", content: promptCompleto }],
             temperature: parseFloat(process.env.TEMP_TEXTO || "0.2")
