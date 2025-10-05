@@ -317,7 +317,7 @@ const MODELO_AGENTE_B = process.env.MODELO_AGENTE_B || "gpt-4o-mini";
 const MODELO_AGENTE_C = process.env.MODELO_AGENTE_C || "o3-mini";
 
 // Agente A - JSON Analyst
-async function runAgentA(figmaSpec, metodo, vectorStoreId) {
+async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
   const prompt = loadAgentPrompt('agente-a-json-analyst');
   if (!prompt) return null;
   
@@ -337,7 +337,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId) {
       model: MODELO_AGENTE_A,
       input: fullPrompt,
       max_output_tokens: 20000,
-      ...(USE_RAG && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+      ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
     };
     
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -369,30 +369,33 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId) {
 }
 
 // Agente B - Vision Reviewer  
-async function runAgentB(imageBase64, metodo) {
+async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
   const prompt = loadAgentPrompt('agente-b-vision-reviewer');
   if (!prompt) return null;
   
   const instruction = prompt.replaceAll("${metodo}", metodo);
   
   try {
+    const body = {
+      model: MODELO_AGENTE_B,
+      messages: [{
+        role: "user", 
+        content: [
+          { type: "text", text: instruction },
+          { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
+        ]
+      }],
+      max_tokens: 4096,
+      ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+    };
+    
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        model: MODELO_AGENTE_B,
-        messages: [{
-          role: "user", 
-          content: [
-            { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
-          ]
-        }],
-        max_tokens: 4096
-      })
+      body: JSON.stringify(body)
     });
     
     const result = await response.json();
@@ -411,7 +414,7 @@ async function runAgentB(imageBase64, metodo) {
 }
 
 // Agente C - Reconciler
-async function runAgentC(achadosA, achadosB, metodo) {
+async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = false) {
   const prompt = loadAgentPrompt('agente-c-reconciler');
   if (!prompt) return null;
   
@@ -424,17 +427,20 @@ async function runAgentC(achadosA, achadosB, metodo) {
   const fullPrompt = [prompt, "", mensagem].join("\n");
   
   try {
+    const body = {
+      model: MODELO_AGENTE_C,
+      messages: [{ role: "user", content: fullPrompt }],
+      max_tokens: 8000,
+      ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+    };
+    
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        model: MODELO_AGENTE_C,
-        messages: [{ role: "user", content: fullPrompt }],
-        max_tokens: 8000
-      })
+      body: JSON.stringify(body)
     });
     
     const result = await response.json();
@@ -453,7 +459,7 @@ async function runAgentC(achadosA, achadosB, metodo) {
 }
 
 // Orquestrador Principal - Coordena A, B e C
-async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId, group) {
+async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId, group, useRag = false) {
   logger.info(`🎭 Orquestrador iniciado: ${group}`);
   
   const startTime = performance.now();
@@ -464,8 +470,8 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     logger.info(`   🔄 Executando Agente A (JSON) e B (Vision) em paralelo...`);
     
     const [resultA, resultB] = await Promise.allSettled([
-      runAgentA(figmaSpec, metodo, vectorStoreId),
-      imageBase64 ? runAgentB(imageBase64, metodo) : Promise.resolve(null)
+      runAgentA(figmaSpec, metodo, vectorStoreId, useRag),
+      imageBase64 ? runAgentB(imageBase64, metodo, vectorStoreId, useRag) : Promise.resolve(null)
     ]);
     
     // Processar resultados do Agente A
@@ -510,7 +516,7 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     // Executar Agente C (Reconciler)
     logger.info(`   🔄 Executando Agente C (Reconciler)...`);
-    achadosFinal = await runAgentC(achadosA, achadosB, metodo);
+    achadosFinal = await runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag);
     
     if (achadosFinal && achadosFinal.achados?.length > 0) {
       logger.info(`   ✅ Agente C: ${achadosFinal.achados.length} achados finais`);
@@ -800,7 +806,7 @@ Responda APENAS em formato JSON válido:
 }
 
 Use apenas: alto, médio, baixo, positiva para severidade.`;
-  }
+}
 
 /** Extrai texto da Responses API (GPT‑5 etc.) de forma robusta */
 function extractResponsesText(j) {
@@ -1384,29 +1390,30 @@ const normalizeImageUrl = (u) =>
           itemImg,        // imagem para Agente B (se disponível)
           metodo,         // método heurístico
           vectorStoreId,  // RAG
-          group           // identificação do grupo
+          group,          // identificação do grupo
+          USE_RAG         // flag do RAG
         );
         
         const analise_ms = performance.now() - tAnalise;
         
         if (resultadoFinal && resultadoFinal.achados?.length > 0) {
           // Converter resultado final para formato texto numerado (compatível com frontend)
-          const achadosTexto = [];
+              const achadosTexto = [];
           resultadoFinal.achados.forEach((achado, index) => {
-            const achadoTexto = [
-              `1 - ${achado.constatacao_hipotese || 'N/A'}`,
-              `2 - ${achado.titulo_card || 'N/A'}`,
-              `3 - ${achado.heuristica_metodo || 'N/A'}`,
-              `4 - ${achado.descricao || 'N/A'}`,
-              `5 - ${achado.sugestao_melhoria || 'N/A'}`,
-              `6 - ${achado.justificativa || 'N/A'}`,
-              `7 - ${achado.severidade || 'N/A'}`,
-              `8 - ${Array.isArray(achado.referencias) ? achado.referencias.join(', ') : (achado.referencias || 'N/A')}`
-            ].join('\n');
-            
-            achadosTexto.push(achadoTexto);
-          });
-          
+                const achadoTexto = [
+                  `1 - ${achado.constatacao_hipotese || 'N/A'}`,
+                  `2 - ${achado.titulo_card || 'N/A'}`,
+                  `3 - ${achado.heuristica_metodo || 'N/A'}`,
+                  `4 - ${achado.descricao || 'N/A'}`,
+                  `5 - ${achado.sugestao_melhoria || 'N/A'}`,
+                  `6 - ${achado.justificativa || 'N/A'}`,
+                  `7 - ${achado.severidade || 'N/A'}`,
+                  `8 - ${Array.isArray(achado.referencias) ? achado.referencias.join(', ') : (achado.referencias || 'N/A')}`
+                ].join('\n');
+                
+                achadosTexto.push(achadoTexto);
+              });
+              
           const textoFinal = achadosTexto.join('\n[[[FIM_HEURISTICA]]]\n');
           respostasIndividuais.push(textoFinal);
           
@@ -1416,8 +1423,8 @@ const normalizeImageUrl = (u) =>
           const prep_ms = tAnalise - tPrep0;
           const post_ms = performance.now() - (tAnalise + analise_ms);
           
-          console.log(`[ITEM ${i+1}/${totalItems.length}] Timer Tela: ${((performance.now() - tItem0) / 1000).toFixed(2)}s | prep: ${(prep_ms / 1000).toFixed(2)}s | orquestração: ${(analise_ms / 1000).toFixed(2)}s | pós: ${(post_ms / 1000).toFixed(2)}s`);
-          console.log(`[ITEM ${i+1}/${totalItems.length}] Resumo: ${resultadoFinal.achados.length} achados gerados via orquestração`);
+          console.log(`[ITEM ${i+1}/${N}] Timer Tela: ${((performance.now() - tItem0) / 1000).toFixed(2)}s | prep: ${(prep_ms / 1000).toFixed(2)}s | orquestração: ${(analise_ms / 1000).toFixed(2)}s | pós: ${(post_ms / 1000).toFixed(2)}s`);
+          console.log(`[ITEM ${i+1}/${N}] Resumo: ${resultadoFinal.achados.length} achados gerados via orquestração`);
           
         } else {
           // Fallback se orquestração falhar
