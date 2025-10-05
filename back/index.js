@@ -1538,15 +1538,15 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
               const jsonData = JSON.parse(heurText);
               if (jsonData.achados && Array.isArray(jsonData.achados)) {
                 // Converter cada achado para formato esperado pelo parser do frontend
-                formattedResponse = jsonData.achados.map((achado, index) => {
-                  return `${index + 1} - ${achado.constatacao_hipotese || 'Constatação'}
-${index + 2} - ${achado.titulo_card || 'Sem título'}
-${index + 3} - ${achado.heuristica_metodo || ''}
-${index + 4} - ${achado.descricao || ''}
-${index + 5} - ${achado.sugestao_melhoria || ''}
-${index + 6} - ${achado.evidencia_metricas || ''}
-${index + 7} - ${achado.severidade || 'médio'}
-${index + 8} - ${Array.isArray(achado.referencias) ? achado.referencias.join(', ') : achado.referencias || ''}`;
+                formattedResponse = jsonData.achados.map((achado) => {
+                  return `1 - ${achado.constatacao_hipotese || 'Constatação'}
+2 - ${achado.titulo_card || 'Sem título'}
+3 - ${achado.heuristica_metodo || ''}
+4 - ${achado.descricao || ''}
+5 - ${achado.sugestao_melhoria || ''}
+6 - ${achado.evidencia_metricas || ''}
+7 - ${achado.severidade || 'médio'}
+8 - ${Array.isArray(achado.referencias) ? achado.referencias.join(', ') : achado.referencias || ''}`;
                 }).join('\n\n[[[FIM_HEURISTICA]]]\n\n');
               }
             }
