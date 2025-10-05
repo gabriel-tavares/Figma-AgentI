@@ -1,0 +1,24 @@
+name: Deploy to EasyPanel
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'back/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Trigger EasyPanel Deploy
+      run: |
+        curl -X POST "${{ secrets.EASYPANEL_WEBHOOK_URL }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "ref": "refs/heads/main",
+            "repository": {
+              "name": "Figma-AgentI",
+              "full_name": "gabriel-tavares/Figma-AgentI"
+            }
+          }'
