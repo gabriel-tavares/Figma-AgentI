@@ -1517,6 +1517,7 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
           console.log("🔍 [DEBUG] Resposta OpenAI:", heurData);
           
           const heurText = heurData.choices?.[0]?.message?.content || "[WARN] Resposta vazia da análise heurística.";
+          console.log("🔍 [DEBUG] Texto da análise heurística:", heurText.substring(0, 500) + "...");
           
           respostasIndividuais.push(heurText);
           status(group, "Análise heurística: concluída (prompt direto)", true);
