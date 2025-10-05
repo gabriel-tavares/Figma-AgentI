@@ -541,6 +541,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
       logger.info(`🔄 Agente B: Buscando contexto RAG para ${metodo}...`);
       
       // 1ª CHAMADA: Buscar contexto RAG específico para vision
+      // NOTA: Chat Completions não suporta file_search, usar apenas texto
       const ragResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -551,11 +552,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
           model: "gpt-4o-mini",
           messages: [{
             role: "user",
-            content: `Extraia as principais heurísticas visuais de ${metodo} relevantes para análise de interfaces. Foque em aspectos que podem ser identificados visualmente: contraste, alinhamento, hierarquia visual, consistência visual, feedback visual, etc. Seja conciso e específico para análise de imagens.`
-          }],
-          tools: [{ 
-            type: "file_search", 
-            file_search: { vector_store_ids: [vectorStoreId] } 
+            content: `Com base no seu conhecimento sobre ${metodo}, liste as principais heurísticas visuais relevantes para análise de interfaces. Foque em aspectos que podem ser identificados visualmente: contraste, alinhamento, hierarquia visual, consistência visual, feedback visual, etc. Seja conciso e específico para análise de imagens.`
           }],
           max_tokens: 2000,
           temperature: 0.1
@@ -687,13 +684,15 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       }
     } else {
       // Usar Chat Completions para GPT-4, etc.
+      // NOTA: Chat Completions não suporta file_search, usar conhecimento do modelo
       const body = {
         model: modeloAgenteC,
         messages: [{ role: "user", content: fullPrompt }],
         max_tokens: 8000,
-        temperature: 0.1,
-        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", file_search: { vector_store_ids: [vectorStoreId] } }] } : {})
+        temperature: 0.1
       };
+      
+      logger.info(`🔄 Agente C: Chat Completions não suporta RAG - usando conhecimento do modelo`);
       
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
