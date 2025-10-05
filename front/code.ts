@@ -974,7 +974,7 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
     console.log("🔍 [DEBUG] Resposta da API:", data);
     console.log("🔍 [DEBUG] Status da resposta:", response.status);
     console.log("🔍 [DEBUG] Array respostas:", data.respostas);
-    console.log("🔍 [DEBUG] Primeira resposta:", data.respostas?.[0]);
+    console.log("🔍 [DEBUG] Primeira resposta:", data.respostas && data.respostas[0]);
 
     let blocos: string[] = [];
     if (data && Array.isArray(data.respostas)) {
