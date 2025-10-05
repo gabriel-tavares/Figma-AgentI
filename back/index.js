@@ -345,6 +345,9 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
       };
       
+      logger.info(`🔄 Agente A: Enviando para Responses API (${MODELO_AGENTE_A})`);
+      logger.info(`🔄 Agente A: Prompt ${fullPrompt.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
+      
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST", 
         headers: {
@@ -354,12 +357,24 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         body: JSON.stringify(body)
       });
       
+      logger.info(`🔄 Agente A: Response status: ${response.status}`);
+      
       const result = await response.json();
+      logger.info(`🔄 Agente A: Response keys: ${Object.keys(result).join(', ')}`);
+      
+      if (!response.ok) {
+        logger.error(`🔄 Agente A: API Error: ${JSON.stringify(result)}`);
+        return null;
+      }
+      
       const content = result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
       
       if (content) {
+        logger.info(`🔄 Agente A: Content received: ${content.length} chars`);
         const cleanContent = stripCodeFence(content);
         return JSON.parse(cleanContent);
+      } else {
+        logger.warn(`🔄 Agente A: No content in response`);
       }
     } else {
       // Usar Chat Completions para GPT-4, etc.
@@ -391,6 +406,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     return null;
   } catch (e) {
     logger.error(`Erro no Agente A: ${e.message}`);
+    logger.error(`Stack trace: ${e.stack}`);
     return null;
   }
 }
