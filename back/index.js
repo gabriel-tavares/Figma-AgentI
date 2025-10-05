@@ -1266,12 +1266,6 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
 
         const skipTemp = MODELOS_SEM_TEMPERATURA.some((rx) => rx.test(String(MODELO_TEXTO || "")));
 
-        // Ajustar tokens para modelos O3 (limite TPM menor)
-        let maxTokens = MAXTOK_TEXTO;
-        if (isO3Model) {
-          maxTokens = Math.min(MAXTOK_TEXTO, 4000);
-        }
-
         const body = {
           model: MODELO_TEXTO,
           input: prompt,
