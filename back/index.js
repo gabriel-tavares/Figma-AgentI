@@ -541,6 +541,22 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
       const ASSISTANT_VISION_ID = "asst_77SpDxl7SiLZcBxeWzU46sni";
       
       try {
+        // TESTE: Verificar se o Assistant existe e está configurado
+        const assistantCheckResponse = await fetch(`https://api.openai.com/v1/assistants/${ASSISTANT_VISION_ID}`, {
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+            "OpenAI-Beta": "assistants=v2"
+          }
+        });
+        
+        if (!assistantCheckResponse.ok) {
+          logger.error(`🔄 Agente B: Assistant não encontrado: ${ASSISTANT_VISION_ID}`);
+          return null;
+        }
+        
+        const assistantInfo = await assistantCheckResponse.json();
+        logger.info(`🔄 Agente B: Assistant OK - Model: ${assistantInfo.model}, Tools: ${assistantInfo.tools?.length || 0}`);
+        
         // Criar thread
         const threadResponse = await fetch("https://api.openai.com/v1/threads", {
           method: "POST",
@@ -555,8 +571,8 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
         const thread = await threadResponse.json();
         logger.info(`🔄 Agente B: Thread criada: ${thread.id}`);
         
-        // Adicionar mensagem com imagem
-        await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+        // Adicionar mensagem com imagem (SIMPLIFICADA)
+        const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -568,7 +584,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
             content: [
               {
                 type: "text",
-                text: `Analise esta interface usando ${metodo}. Forneça achados específicos baseados na imagem visual.`
+                text: `Por favor, analise esta interface usando ${metodo}. Retorne um JSON com achados de UX.`
               },
               {
                 type: "image_url",
@@ -578,9 +594,15 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
           })
         });
         
+        if (!messageResponse.ok) {
+          const msgError = await messageResponse.json();
+          logger.error(`🔄 Agente B: Erro ao adicionar mensagem: ${JSON.stringify(msgError)}`);
+          return null;
+        }
+        
         logger.info(`🔄 Agente B: Mensagem com imagem adicionada`);
         
-        // Executar run
+        // Executar run (SEM response_format para testar)
         const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
           method: "POST",
           headers: {
@@ -589,7 +611,8 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
             "OpenAI-Beta": "assistants=v2"
           },
           body: JSON.stringify({
-            assistant_id: ASSISTANT_VISION_ID
+            assistant_id: ASSISTANT_VISION_ID,
+            instructions: `Você deve retornar APENAS um JSON válido com a estrutura: {"achados": [{"constatacao_hipotese": "...", "titulo_card": "...", "heuristica_metodo": "...", "descricao": "...", "sugestao_melhoria": "...", "justificativa": "...", "severidade": "alto|médio|baixo|positiva", "referencias": ["..."]}]}`
           })
         });
         
