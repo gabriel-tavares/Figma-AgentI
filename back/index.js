@@ -1497,6 +1497,10 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         const promptCompleto = `${heurInstruction}\n\nJSON do layout:\n${visionPretty || raw}`;
         
         try {
+          console.log("🔍 [DEBUG] Iniciando análise heurística com prompt direto");
+          console.log("🔍 [DEBUG] Método:", metodo);
+          console.log("🔍 [DEBUG] Tamanho do prompt:", promptCompleto.length);
+          
           const responseHeur = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: HEADERS_VISION,
@@ -1508,13 +1512,17 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
             }),
           });
           
+          console.log("🔍 [DEBUG] Status da resposta OpenAI:", responseHeur.status);
           const heurData = await responseHeur.json();
+          console.log("🔍 [DEBUG] Resposta OpenAI:", heurData);
+          
           const heurText = heurData.choices?.[0]?.message?.content || "[WARN] Resposta vazia da análise heurística.";
           
           respostasIndividuais.push(heurText);
           status(group, "Análise heurística: concluída (prompt direto)", true);
         } catch (e) {
           console.error("[ERROR] Erro na análise heurística:", e.message);
+          console.error("[ERROR] Stack trace:", e.stack);
           respostasIndividuais.push("[WARN] Erro na análise heurística. [[[FIM_HEURISTICA]]]");
           status(group, "Análise heurística: erro", false);
         }
