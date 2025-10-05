@@ -13,7 +13,7 @@ console.log("🔥 [DEBUG] Plugin Agent.I carregado - versão atualizada!");
 // Exibe a UI do plugin (janela direita) com largura/altura definidas
 figma.showUI(__html__, { width: 380, height: 385 });
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
-const API_URL = "http://localhost:3000/analisar";
+const API_URL = "https://api.uxday.com.br/analisar";
 function hexFromPaint(paint) {
     if (!paint || paint.type !== 'SOLID')
         return null;
@@ -481,7 +481,7 @@ async function createBenchmarkCards(results, node) {
         let currentY = node.y;
         // Filtrar apenas resultados bem-sucedidos e ordenar por score
         const successfulResults = results.filter(r => !r.error).sort((a, b) => b.evaluation.score - a.evaluation.score);
-        for (let i = 0; i < Math.min(successfulResults.length, 5); i++) {
+        for (let i = 0; i < successfulResults.length; i++) {
             const result = successfulResults[i];
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
             // Criar card
@@ -850,7 +850,7 @@ figma.ui.onmessage = async (msg) => {
                 categoria: categoria,
                 testType: testType
             });
-            const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
+            const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
