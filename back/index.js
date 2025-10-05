@@ -524,7 +524,7 @@ async function getRagContext(metodo, vectorStoreId) {
   }
 }
 
-// Agente B - Vision Reviewer com Assistants API
+// Agente B - Vision Reviewer com RAG em duas chamadas
 async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
   const prompt = loadAgentPrompt('agente-b-vision-reviewer');
   if (!prompt) return null;
@@ -534,273 +534,93 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
   try {
     logger.info(`🔄 Agente B: Iniciando análise de imagem (${imageBase64 ? imageBase64.length : 0} chars)`);
     
-    // NOVA ABORDAGEM: Usar Assistant fixo com file_search + vision
+    let finalPrompt = instruction;
+    
+    // NOVA ABORDAGEM: Duas chamadas separadas com RAG
     if (useRag && vectorStoreId) {
-      logger.info(`🔄 Agente B: Usando Assistant fixo com RAG integrado`);
+      logger.info(`🔄 Agente B: Buscando contexto RAG para ${metodo}...`);
       
-      const ASSISTANT_VISION_ID = "asst_77SpDxl7SiLZcBxeWzU46sni";
-      
-      try {
-        // TESTE: Verificar se o Assistant existe e está configurado
-        const assistantCheckResponse = await fetch(`https://api.openai.com/v1/assistants/${ASSISTANT_VISION_ID}`, {
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-            "OpenAI-Beta": "assistants=v2"
-          }
-        });
-        
-        if (!assistantCheckResponse.ok) {
-          logger.error(`🔄 Agente B: Assistant não encontrado: ${ASSISTANT_VISION_ID}`);
-          return null;
-        }
-        
-        const assistantInfo = await assistantCheckResponse.json();
-        logger.info(`🔄 Agente B: Assistant OK - Model: ${assistantInfo.model}, Tools: ${assistantInfo.tools?.length || 0}`);
-        
-        // Criar thread
-        const threadResponse = await fetch("https://api.openai.com/v1/threads", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-            "OpenAI-Beta": "assistants=v2"
-          },
-          body: JSON.stringify({})
-        });
-        
-        const thread = await threadResponse.json();
-        logger.info(`🔄 Agente B: Thread criada: ${thread.id}`);
-        
-        // CORREÇÃO: Upload da imagem como arquivo para Assistants API
-        let uploadedFileId = null;
-        try {
-          // Converter base64 para buffer
-          const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-          const imageBuffer = Buffer.from(base64Data, 'base64');
-          
-          // Criar FormData para upload
-          const FormData = require('form-data');
-          const formData = new FormData();
-          formData.append('file', imageBuffer, {
-            filename: 'interface.png',
-            contentType: 'image/png'
-          });
-          formData.append('purpose', 'vision');
-          
-          // Upload do arquivo
-          const uploadResponse = await fetch('https://api.openai.com/v1/files', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-              ...formData.getHeaders()
-            },
-            body: formData
-          });
-          
-          if (!uploadResponse.ok) {
-            const uploadError = await uploadResponse.json();
-            logger.error(`🔄 Agente B: Erro no upload: ${JSON.stringify(uploadError)}`);
-            return null;
-          }
-          
-          const uploadResult = await uploadResponse.json();
-          uploadedFileId = uploadResult.id;
-          logger.info(`🔄 Agente B: Arquivo uploadado: ${uploadedFileId}`);
-          
-          // Adicionar mensagem com arquivo
-          const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-              "Content-Type": "application/json",
-              "OpenAI-Beta": "assistants=v2"
-            },
-            body: JSON.stringify({
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `Por favor, analise esta interface usando ${metodo}. Retorne um JSON com achados de UX.`
-                },
-                {
-                  type: "image_file",
-                  image_file: { file_id: uploadedFileId }
-                }
-              ]
-            })
-          });
-          
-          if (!messageResponse.ok) {
-            const msgError = await messageResponse.json();
-            logger.error(`🔄 Agente B: Erro ao adicionar mensagem: ${JSON.stringify(msgError)}`);
-            return null;
-          }
-          
-          logger.info(`🔄 Agente B: Mensagem com arquivo adicionada`);
-          
-        } catch (uploadErr) {
-          logger.error(`🔄 Agente B: Erro no processo de upload: ${uploadErr.message}`);
-          return null;
-        }
-        
-        // Executar run (SEM response_format para testar)
-        const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-            "OpenAI-Beta": "assistants=v2"
-          },
-          body: JSON.stringify({
-            assistant_id: ASSISTANT_VISION_ID,
-            instructions: `Analise esta interface usando ${metodo}. Retorne APENAS um JSON válido com achados de UX. Use o formato: {"achados": [{"constatacao_hipotese": "...", "titulo_card": "...", "heuristica_metodo": "...", "descricao": "...", "sugestao_melhoria": "...", "justificativa": "...", "severidade": "alto|médio|baixo|positiva", "referencias": ["..."]}]}`
-          })
-        });
-        
-        const run = await runResponse.json();
-        logger.info(`🔄 Agente B: Run iniciado: ${run.id}`);
-        
-        // Aguardar conclusão
-        let runStatus = run;
-        let attempts = 0;
-        const maxAttempts = 180; // 3 minutos para Vision + RAG + JSON Schema
-        
-        while ((runStatus.status === 'queued' || runStatus.status === 'in_progress') && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-              "OpenAI-Beta": "assistants=v2"
-            }
-          });
-          runStatus = await statusResponse.json();
-          attempts++;
-          
-          if (attempts % 10 === 0) {
-            logger.info(`🔄 Agente B: Aguardando... (${attempts}s) Status: ${runStatus.status}`);
-          }
-        }
-        
-        if (runStatus.status === 'completed') {
-          logger.info(`🔄 Agente B: Run completed successfully!`);
-          
-          // Aguardar um pouco antes de buscar mensagens (sincronização)
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Buscar mensagens
-          const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-              "OpenAI-Beta": "assistants=v2"
-            }
-          });
-          
-          if (!messagesResponse.ok) {
-            const error = await messagesResponse.json();
-            logger.error(`🔄 Agente B: Erro ao buscar mensagens: ${JSON.stringify(error)}`);
-            return null;
-          }
-          
-          const messages = await messagesResponse.json();
-          logger.info(`🔄 Agente B: Messages received: ${messages.data?.length || 0} messages`);
-          
-          // Debug: mostrar todas as mensagens
-          if (messages.data && messages.data.length > 0) {
-            messages.data.forEach((msg, index) => {
-              logger.info(`🔄 Agente B: Message ${index}: role=${msg.role}, content_length=${msg.content?.length || 0}`);
-            });
-          }
-          
-          // Buscar a primeira mensagem do assistant (não do user)
-          const assistantMessage = messages.data?.find(msg => msg.role === 'assistant');
-          
-          if (assistantMessage?.content?.[0]?.text?.value) {
-            const content = assistantMessage.content[0].text.value;
-            logger.info(`🔄 Agente B: Content received via Assistants API: ${content.length} chars`);
-            logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
-            
-            const cleanContent = stripCodeFence(content);
-            return JSON.parse(cleanContent);
-          } else {
-            logger.warn(`🔄 Agente B: No assistant message with text content found`);
-            if (assistantMessage) {
-              logger.warn(`🔄 Agente B: Assistant message content: ${JSON.stringify(assistantMessage.content, null, 2)}`);
-            } else {
-              logger.warn(`🔄 Agente B: No assistant messages found at all`);
-            }
-          }
-        } else {
-          logger.error(`🔄 Agente B: Run failed with status: ${runStatus.status} after ${attempts}s`);
-          if (runStatus.last_error) {
-            logger.error(`🔄 Agente B: Error details: ${JSON.stringify(runStatus.last_error)}`);
-          }
-          logger.error(`🔄 Agente B: Full run status: ${JSON.stringify(runStatus, null, 2)}`);
-        }
-        
-        // Limpeza: deletar arquivo uploadado
-        if (uploadedFileId) {
-          try {
-            await fetch(`https://api.openai.com/v1/files/${uploadedFileId}`, {
-              method: 'DELETE',
-              headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-              }
-            });
-            logger.info(`🔄 Agente B: Arquivo ${uploadedFileId} deletado`);
-          } catch (deleteErr) {
-            logger.warn(`🔄 Agente B: Erro ao deletar arquivo: ${deleteErr.message}`);
-          }
-        }
-        
-      } catch (assistantError) {
-        logger.error(`🔄 Agente B: Erro no Assistant: ${assistantError.message}`);
-      }
-      
-    } else {
-      // Fallback: Chat Completions sem RAG
-      logger.info(`🔄 Agente B: Usando Chat Completions (RAG desabilitado)`);
-      
-      const body = {
-        model: "gpt-4o-mini",
-        messages: [{
-          role: "user", 
-          content: [
-            { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: imageBase64 } }
-          ]
-        }],
-        max_tokens: 4096
-      };
-      
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      // 1ª CHAMADA: Buscar contexto RAG específico para vision
+      const ragResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{
+            role: "user",
+            content: `Extraia as principais heurísticas visuais de ${metodo} relevantes para análise de interfaces. Foque em aspectos que podem ser identificados visualmente: contraste, alinhamento, hierarquia visual, consistência visual, feedback visual, etc. Seja conciso e específico para análise de imagens.`
+          }],
+          tools: [{ 
+            type: "file_search", 
+            file_search: { vector_store_ids: [vectorStoreId] } 
+          }],
+          max_tokens: 2000,
+          temperature: 0.1
+        })
       });
       
-      logger.info(`🔄 Agente B: Response status: ${response.status}`);
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        logger.error(`🔄 Agente B: API Error: ${JSON.stringify(result)}`);
-        return null;
-      }
-      
-      const content = result.choices?.[0]?.message?.content;
-      
-      if (content) {
-        logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
-        logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
-        const cleanContent = stripCodeFence(content);
-        return JSON.parse(cleanContent);
+      if (ragResponse.ok) {
+        const ragResult = await ragResponse.json();
+        const ragContext = ragResult.choices?.[0]?.message?.content;
+        
+        if (ragContext) {
+          logger.info(`🔄 Agente B: Contexto RAG obtido: ${ragContext.length} chars`);
+          finalPrompt += `\n\nCONTEXTO HEURÍSTICAS VISUAIS:\n${ragContext}`;
+        } else {
+          logger.warn(`🔄 Agente B: RAG não retornou contexto`);
+        }
+      } else {
+        logger.warn(`🔄 Agente B: Erro na busca RAG: ${ragResponse.status}`);
       }
     }
     
-    return null;
+    // 2ª CHAMADA: Vision com contexto RAG injetado
+    logger.info(`🔄 Agente B: Executando análise visual com contexto...`);
+    
+    const visionResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{
+          role: "user", 
+          content: [
+            { type: "text", text: finalPrompt },
+            { type: "image_url", image_url: { url: imageBase64 } }
+          ]
+        }],
+        max_tokens: 4096,
+        temperature: 0.1
+      })
+    });
+    
+    logger.info(`🔄 Agente B: Vision response status: ${visionResponse.status}`);
+    
+    if (!visionResponse.ok) {
+      const error = await visionResponse.json();
+      logger.error(`🔄 Agente B: Vision API Error: ${JSON.stringify(error)}`);
+      return null;
+    }
+    
+    const visionResult = await visionResponse.json();
+    const content = visionResult.choices?.[0]?.message?.content;
+    
+    if (content) {
+      logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
+      logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
+      const cleanContent = stripCodeFence(content);
+      return JSON.parse(cleanContent);
+    } else {
+      logger.warn(`🔄 Agente B: No content in vision response`);
+      return null;
+    }
+    
   } catch (e) {
     logger.error(`❌ Erro no Agente B: ${e.message}`);
     logger.error(`❌ Stack trace: ${e.stack}`);
