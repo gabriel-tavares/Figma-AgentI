@@ -1729,7 +1729,7 @@ app.get("/ping-openai", async (_req, res) => {
       method: "POST",
       headers: HEADERS_VISION,
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
+        model: modeloVision,
         messages: [{ role: "user", content: "ping" }],
       }),
     });
