@@ -1255,9 +1255,9 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         }
 
         // Log do prompt reduzido
-        const estimatedTokens = Math.ceil(prompt.length / 4);
+        const finalEstimatedTokens = Math.ceil(prompt.length / 4);
         const promptType = hasSpec ? "prompt + dados Figma" : "prompt + dados imagem";
-        console.log(`   📝 Prompt: ${prompt.length.toLocaleString()} chars (~${estimatedTokens.toLocaleString()} tokens), Tipo: ${promptType}`);
+        console.log(`   📝 Prompt: ${prompt.length.toLocaleString()} chars (~${finalEstimatedTokens.toLocaleString()} tokens), Tipo: ${promptType}`);
         
 
         const skipTemp = MODELOS_SEM_TEMPERATURA.some((rx) => rx.test(String(MODELO_TEXTO || "")));
