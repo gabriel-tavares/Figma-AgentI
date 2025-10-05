@@ -33,6 +33,7 @@ RUN echo "NODE_ENV=production" > .env && \
     echo "OPENAI_API_KEY=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" >> .env && \
     echo "OPENROUTER_API_KEY=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" >> .env && \
     echo "VECTOR_STORE_ID=vs_6893c02afcb081918c69241839c8ca54" >> .env && \
+    echo "USE_RESPONSES=true" >> .env && \
     echo "" >> .env && \
     echo "# MODELOS DE IA - Baseado nos limites gratuitos diários" >> .env && \
     echo "# TIER 1: 250k tokens/dia - Modelos premium" >> .env && \

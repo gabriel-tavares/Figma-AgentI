@@ -1142,35 +1142,34 @@ const normalizeImageUrl = (u) =>
         );
         status(group, "Persistido", true, `debug_layouts/${fileName}`);
 
-      // Salvar figmaSpec em arquivo temporário para consulta da IA
-      let figmaSpecFile = null;
-      if (hasSpec && spec) {
-        try {
-          const tempDir = path.join(__dirname, "temp");
-          fs.mkdirSync(tempDir, { recursive: true });
-          figmaSpecFile = path.join(tempDir, `figma_spec_item${i+1}.json`);
-          fs.writeFileSync(figmaSpecFile, JSON.stringify(spec, null, 2), 'utf8');
-        } catch (e) {
-          console.warn(`   ⚠️ Erro ao salvar figmaSpec: ${e.message}`);
-        }
-      }
-      
-      // Monta a mensagem mínima para a etapa textual
-      const visionData = visionPretty || raw;
-      const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
-      
-      const mensagemMinima = [
-        `metodo: ${metodo}`,
-        `contexto: ${descricao || "Nenhum."}`,
-        figmaSpecFile ? `figma_spec_arquivo: temp/figma_spec_item${i+1}.json` : `descricao_json:`,
-        figmaSpecFile ? "" : visionDataLimited
-      ].filter(Boolean).join("\n");
-
       // Log do agente ativo
       status(group, "Agente", true, `Vision=${modeloVision} | Heurística=${USE_RESPONSES ? `Responses(${MODELO_TEXTO})` : (ASSISTANT_ID ? "Assistants" : "OFF")}`);
       status(group, "RAG", true, USE_RAG ? `ON (${vectorStoreId || "sem ID"})` : "OFF");
 
       if (USE_RESPONSES) {
+        // Salvar figmaSpec em arquivo temporário para consulta da IA
+        let figmaSpecFile = null;
+        if (hasSpec && spec) {
+          try {
+            const tempDir = path.join(__dirname, "temp");
+            fs.mkdirSync(tempDir, { recursive: true });
+            figmaSpecFile = path.join(tempDir, `figma_spec_item${i+1}.json`);
+            fs.writeFileSync(figmaSpecFile, JSON.stringify(spec, null, 2), 'utf8');
+          } catch (e) {
+            logger.warn(`   Erro ao salvar figmaSpec: ${e.message}`);
+          }
+        }
+        
+        // Monta a mensagem mínima para a etapa textual
+        const visionData = visionPretty || raw;
+        const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
+        
+        const mensagemMinima = [
+          `metodo: ${metodo}`,
+          `contexto: ${descricao || "Nenhum."}`,
+          figmaSpecFile ? `figma_spec_arquivo: temp/figma_spec_item${i+1}.json` : `descricao_json:`,
+          figmaSpecFile ? "" : visionDataLimited
+        ].filter(Boolean).join("\n");
         // Usa o prompt do Assistant, se houver, como base. Se não, usa fallback.
         let instr = buildHeurInstruction(metodo);
         try {
