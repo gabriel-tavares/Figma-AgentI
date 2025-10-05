@@ -367,14 +367,51 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         return null;
       }
       
-      const content = result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
+      // Debug: mostrar estrutura completa da resposta
+      logger.info(`🔄 Agente A: Status: ${result.status}`);
+      logger.info(`🔄 Agente A: Output type: ${typeof result.output}, length: ${Array.isArray(result.output) ? result.output.length : 'N/A'}`);
+      
+      if (result.output && Array.isArray(result.output) && result.output.length > 0) {
+        logger.info(`🔄 Agente A: Output[0] keys: ${Object.keys(result.output[0]).join(', ')}`);
+        if (result.output[0].content && Array.isArray(result.output[0].content)) {
+          logger.info(`🔄 Agente A: Content length: ${result.output[0].content.length}`);
+          if (result.output[0].content[0]) {
+            logger.info(`🔄 Agente A: Content[0] keys: ${Object.keys(result.output[0].content[0]).join(', ')}`);
+          }
+        }
+      }
+      
+      // Tentar diferentes formas de extrair o conteúdo
+      let content = null;
+      
+      // Método 1: result.output[0].content[0].text.value
+      if (result.output?.[0]?.content?.[0]?.text?.value) {
+        content = result.output[0].content[0].text.value;
+        logger.info(`🔄 Agente A: Content extraído via method 1: ${content.length} chars`);
+      }
+      // Método 2: result.output_text
+      else if (result.output_text) {
+        content = result.output_text;
+        logger.info(`🔄 Agente A: Content extraído via method 2: ${content.length} chars`);
+      }
+      // Método 3: result.text
+      else if (result.text) {
+        content = result.text;
+        logger.info(`🔄 Agente A: Content extraído via method 3: ${content.length} chars`);
+      }
+      // Método 4: result.output[0].content[0].text (sem .value)
+      else if (result.output?.[0]?.content?.[0]?.text) {
+        content = result.output[0].content[0].text;
+        logger.info(`🔄 Agente A: Content extraído via method 4: ${content.length} chars`);
+      }
       
       if (content) {
-        logger.info(`🔄 Agente A: Content received: ${content.length} chars`);
+        logger.info(`🔄 Agente A: Content preview: ${content.substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
         return JSON.parse(cleanContent);
       } else {
-        logger.warn(`🔄 Agente A: No content in response`);
+        logger.warn(`🔄 Agente A: No content found in response`);
+        logger.warn(`🔄 Agente A: Full response: ${JSON.stringify(result, null, 2).substring(0, 1000)}...`);
       }
     } else {
       // Usar Chat Completions para GPT-4, etc.
