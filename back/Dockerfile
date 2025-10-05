@@ -66,10 +66,11 @@ RUN echo "NODE_ENV=production" > .env && \
 
 # Criar diretórios necessários e ajustar permissões
 RUN mkdir -p debug_responses debug_layouts debug_vision temp && \
-    chmod -R 777 /app/temp && \
-    chmod -R 777 /app/debug_layouts && \
-    chmod -R 777 /app/debug_responses && \
-    chmod -R 777 /app/debug_vision
+    chown -R nodejs:nodejs /app && \
+    chmod -R 755 /app
+
+# Mudar para usuário não-root
+USER nodejs
 
 # Expor porta
 EXPOSE 3000
@@ -78,5 +79,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000/ping-openai', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-# Comando para iniciar a aplicação (como root para evitar problemas de permissão)
+# Comando para iniciar a aplicação
 CMD ["node", "index.js"]
