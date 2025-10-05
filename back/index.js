@@ -1490,11 +1490,34 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         status(group, "Persistido", false, e.message);
       }
 
-      // 2) Assistants v2 (opcional)
-      // 🚫 Se não houver ASSISTANT_ID, devolve só o JSON do Vision/Figma (sem heurística)
+      // 2) Análise heurística usando prompt direto
       if (!ASSISTANT_ID) {
-        respostasIndividuais.push(visionPretty || raw);
-        status(group, "Assistants: pulado (sem ASSISTANT_ID)", true);
+        // Usar prompt direto para análise heurística
+        const heurInstruction = buildHeurInstruction(metodo);
+        const promptCompleto = `${heurInstruction}\n\nJSON do layout:\n${visionPretty || raw}`;
+        
+        try {
+          const responseHeur = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: HEADERS_VISION,
+            body: JSON.stringify({
+              model: "gpt-4o",
+              messages: [{ role: "user", content: promptCompleto }],
+              temperature: parseFloat(TEMP_TEXTO || "0.2"),
+              max_tokens: parseInt(MAX_TOKENS_TEXTO || "8192")
+            }),
+          });
+          
+          const heurData = await responseHeur.json();
+          const heurText = heurData.choices?.[0]?.message?.content || "[WARN] Resposta vazia da análise heurística.";
+          
+          respostasIndividuais.push(heurText);
+          status(group, "Análise heurística: concluída (prompt direto)", true);
+        } catch (e) {
+          console.error("[ERROR] Erro na análise heurística:", e.message);
+          respostasIndividuais.push("[WARN] Erro na análise heurística. [[[FIM_HEURISTICA]]]");
+          status(group, "Análise heurística: erro", false);
+        }
         continue;
       }
 
