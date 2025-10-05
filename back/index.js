@@ -312,7 +312,8 @@ const tempVision = Number(process.env.TEMP_VISION || 0.1);
 const maxTokensVision = Number(process.env.MAX_TOKENS_VISION || 20000);
 
 // Loop Toggles e modelos para etapa textual (Responses GPT‑5 vs Assistants)
-const USE_RESPONSES_DEFAULT = /^(1|true|on|yes)$/i.test(process.env.USE_RESPONSES || "");
+// Forçar USE_RESPONSES=true (modo completo sempre ativo)
+const USE_RESPONSES_DEFAULT = true; // /^(1|true|on|yes)$/i.test(process.env.USE_RESPONSES || "true");
 const MODELO_TEXTO  = process.env.MODELO_TEXTO || "gpt-5";
 const MODELOS_SEM_TEMPERATURA = [/^gpt-5/i, /^o3/i, /^o4/i];
 const TEMP_TEXTO    = Number(process.env.TEMP_TEXTO || 0.2);
@@ -1238,13 +1239,11 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         - Para múltiplos achados, adicione mais objetos no array "achados"
         - Use sempre a mesma estrutura para cada achado
         
-        ${figmaSpecFile ? `
-        IMPORTANTE: Os dados do figmaSpec estão em arquivo separado.
-        - Se precisar de mais detalhes específicos, consulte o arquivo mencionado
-        - Use os dados fornecidos na mensagem para análise inicial
-        - Referencie números/coordenadas específicas quando disponíveis
-        ` : ''}`;
+        `;
 
+        // figmaSpecFile foi removido - sempre usar dados inline agora
+        const figmaSpecFile = null;
+        
         const prompt = [instr2.replaceAll("${metodo}", metodo), "", "DADOS:", mensagemMinima].join("\n");
 
         // Salvar prompt do figmaSpec para debug
@@ -1481,6 +1480,9 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         const infer_ms = performance.now() - tInfer;
         const post_ms = performance.now() - tPost0;
         const total_ms = performance.now() - tItem0;
+        
+        // Construir canvasPx a partir de W e H
+        const canvasPx = (W && H) ? `${W}x${H}` : "indefinido";
         
         console.log(`[${group}] Timer Tela: ${(total_ms / 1000).toFixed(2)}s | prep: ${(prep_ms / 1000).toFixed(2)}s | RAG: ${(0 / 1000).toFixed(2)}s | inferência: ${(infer_ms / 1000).toFixed(2)}s | pós: ${(post_ms / 1000).toFixed(2)}s`);
         console.log(`[${group}] Resumo Tokens: 0 entrada + 0 saída = 0 total`);
