@@ -15,8 +15,8 @@ services:
     volumes:
       # Volume para logs persistentes
       - ./logs:/app/logs
-      # Volume para arquivos temporários
-      - ./temp:/app/temp
+      # Volume para arquivos temporários (com permissões corretas)
+      - ./temp:/app/temp:rw
       # Volume para debug (opcional)
       - ./debug:/app/debug
     networks:
