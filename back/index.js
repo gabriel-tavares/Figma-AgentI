@@ -627,7 +627,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
 }
 
 // Agente C - Reconciler
-async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = false) {
+async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = false, ragContext = null) {
   const prompt = loadAgentPrompt('agente-c-reconciler');
   if (!prompt) return null;
   
@@ -637,7 +637,13 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
     `achadosB: ${JSON.stringify(achadosB, null, 2)}`
   ].join("\n");
   
-  const fullPrompt = [prompt, "", mensagem].join("\n");
+  let fullPrompt = [prompt, "", mensagem].join("\n");
+  
+  // ADICIONAR CONTEXTO RAG COMPARTILHADO
+  if (ragContext && ragContext.trim()) {
+    logger.info(`🔄 Agente C: Usando contexto RAG compartilhado (${ragContext.length} chars)`);
+    fullPrompt += `\n\nCONTEXTO HEURÍSTICAS (do Agente A):\n${ragContext}`;
+  }
   
   try {
     logger.info(`🔄 Agente C: Iniciando reconciliação de ${(achadosA.achados?.length || 0) + (achadosB.achados?.length || 0)} achados`);
@@ -692,7 +698,7 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         temperature: 0.1
       };
       
-      logger.info(`🔄 Agente C: Chat Completions não suporta RAG - usando conhecimento do modelo`);
+      logger.info(`🔄 Agente C: Chat Completions ${ragContext ? 'com RAG compartilhado' : 'sem RAG'} - usando conhecimento do modelo`);
       
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -737,6 +743,7 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
   
   const startTime = performance.now();
   let achadosA = null, achadosB = null, achadosFinal = null;
+  let ragContext = null; // Para compartilhar entre agentes
   
   try {
     // Executar Agente A e B em paralelo
@@ -751,6 +758,19 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     if (resultA.status === 'fulfilled' && resultA.value) {
       achadosA = resultA.value;
       logger.info(`   ✅ Agente A: ${achadosA.achados?.length || 0} achados`);
+      
+      // EXTRAIR CONTEXTO RAG do Agente A para compartilhar
+      if (useRag && vectorStoreId) {
+        try {
+          logger.info(`🔄 Extraindo contexto RAG do Agente A para compartilhamento...`);
+          ragContext = await getRagContext(metodo, vectorStoreId);
+          if (ragContext) {
+            logger.info(`🔄 Contexto RAG extraído: ${ragContext.length} chars`);
+          }
+        } catch (ragError) {
+          logger.warn(`🔄 Erro ao extrair RAG: ${ragError.message}`);
+        }
+      }
     } else {
       logger.warn(`   ⚠️ Agente A falhou: ${resultA.reason?.message || 'erro desconhecido'}`);
       achadosA = { achados: [] };
@@ -789,7 +809,7 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     // Executar Agente C (Reconciler)
     logger.info(`   🔄 Executando Agente C (Reconciler)...`);
-    achadosFinal = await runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag);
+    achadosFinal = await runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag, ragContext);
     
     if (achadosFinal && achadosFinal.achados?.length > 0) {
       logger.info(`   ✅ Agente C: ${achadosFinal.achados.length} achados finais`);
