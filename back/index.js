@@ -1,6 +1,15 @@
 ﻿/** 🌱 Carrega variáveis de ambiente do arquivo .env */
 require("dotenv").config();
 
+// Debug: verificar se as variáveis estão sendo carregadas
+console.log('🔍 DEBUG - Variáveis de ambiente:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'DEFINIDA' : 'NÃO DEFINIDA');
+console.log('OPENROUTER_API_KEY:', process.env.OPENROUTER_API_KEY ? 'DEFINIDA' : 'NÃO DEFINIDA');
+console.log('VECTOR_STORE_ID:', process.env.VECTOR_STORE_ID ? 'DEFINIDA' : 'NÃO DEFINIDA');
+console.log('ASSISTANT_ID:', process.env.ASSISTANT_ID ? 'DEFINIDA' : 'NÃO DEFINIDA');
+
 /**
  * =========================
  *  Dependências & Setup
