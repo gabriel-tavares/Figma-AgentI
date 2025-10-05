@@ -620,6 +620,9 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
         if (runStatus.status === 'completed') {
           logger.info(`🔄 Agente B: Run completed successfully!`);
           
+          // Aguardar um pouco antes de buscar mensagens (sincronização)
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
           // Buscar mensagens
           const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
             headers: {
@@ -628,22 +631,39 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
             }
           });
           
+          if (!messagesResponse.ok) {
+            const error = await messagesResponse.json();
+            logger.error(`🔄 Agente B: Erro ao buscar mensagens: ${JSON.stringify(error)}`);
+            return null;
+          }
+          
           const messages = await messagesResponse.json();
           logger.info(`🔄 Agente B: Messages received: ${messages.data?.length || 0} messages`);
           
-          const lastMessage = messages.data[0];
-          logger.info(`🔄 Agente B: Last message role: ${lastMessage?.role}, content type: ${typeof lastMessage?.content}`);
+          // Debug: mostrar todas as mensagens
+          if (messages.data && messages.data.length > 0) {
+            messages.data.forEach((msg, index) => {
+              logger.info(`🔄 Agente B: Message ${index}: role=${msg.role}, content_length=${msg.content?.length || 0}`);
+            });
+          }
           
-          if (lastMessage?.content?.[0]?.text?.value) {
-            const content = lastMessage.content[0].text.value;
+          // Buscar a primeira mensagem do assistant (não do user)
+          const assistantMessage = messages.data?.find(msg => msg.role === 'assistant');
+          
+          if (assistantMessage?.content?.[0]?.text?.value) {
+            const content = assistantMessage.content[0].text.value;
             logger.info(`🔄 Agente B: Content received via Assistants API: ${content.length} chars`);
             logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
             
             const cleanContent = stripCodeFence(content);
             return JSON.parse(cleanContent);
           } else {
-            logger.warn(`🔄 Agente B: No text content found in last message`);
-            logger.warn(`🔄 Agente B: Last message content: ${JSON.stringify(lastMessage?.content, null, 2)}`);
+            logger.warn(`🔄 Agente B: No assistant message with text content found`);
+            if (assistantMessage) {
+              logger.warn(`🔄 Agente B: Assistant message content: ${JSON.stringify(assistantMessage.content, null, 2)}`);
+            } else {
+              logger.warn(`🔄 Agente B: No assistant messages found at all`);
+            }
           }
         } else {
           logger.error(`🔄 Agente B: Run failed with status: ${runStatus.status} after ${attempts}s`);
