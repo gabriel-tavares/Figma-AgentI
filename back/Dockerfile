@@ -45,10 +45,9 @@ RUN echo "NODE_ENV=production" > .env && \
     echo "LOG_TO_FILE=true" >> .env && \
     echo "REQUEST_TIMEOUT=30000" >> .env
 
-# Criar diretórios necessários
-RUN mkdir -p temp debug_responses debug_layouts debug_vision && \
-    chown -R nodejs:nodejs /app && \
-    chmod -R 777 /app/temp
+# Criar diretórios necessários (serão criados pelo volume)
+RUN mkdir -p debug_responses debug_layouts debug_vision && \
+    chown -R nodejs:nodejs /app
 
 # Mudar para usuário não-root
 USER nodejs
