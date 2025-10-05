@@ -1505,15 +1505,16 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
           const isGPT5Model = /^gpt-5/i.test(MODELO_TEXTO);
           const requestBody = {
             model: MODELO_TEXTO,
-            messages: [{ role: "user", content: promptCompleto }],
-            temperature: parseFloat(process.env.TEMP_TEXTO || "0.2")
+            messages: [{ role: "user", content: promptCompleto }]
           };
           
-          // GPT-5 usa max_completion_tokens, outros modelos usam max_tokens
+          // GPT-5 usa max_completion_tokens e não suporta temperature personalizada
           if (isGPT5Model) {
             requestBody.max_completion_tokens = parseInt(process.env.MAX_TOKENS_TEXTO || "8192");
+            // GPT-5 só aceita temperature padrão (1), não aceita valores personalizados
           } else {
             requestBody.max_tokens = parseInt(process.env.MAX_TOKENS_TEXTO || "8192");
+            requestBody.temperature = parseFloat(process.env.TEMP_TEXTO || "0.2");
           }
           
           const responseHeur = await fetch("https://api.openai.com/v1/chat/completions", {
