@@ -518,9 +518,11 @@ function buildHeurInstruction(metodo) {
   try {
     const promptPath = path.join(__dirname, 'prompts', 'heuristica.txt');
     const promptContent = fs.readFileSync(promptPath, 'utf8').trim();
+    logger.info(`📝 Prompt carregado de heuristica.txt (${promptContent.length} chars)`);
     return promptContent.replaceAll("${metodo}", metodo);
   } catch (e) {
     logger.warn(`Não foi possível ler prompts/heuristica.txt:`, e.message);
+    logger.info(`📝 Usando prompt fallback`);
     // Fallback compactado baseado no heuristica.txt (formato JSON)
     return `Você é um especialista em UX com foco em análise heurística de interfaces digitais.
 
