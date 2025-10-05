@@ -13,7 +13,7 @@ jobs:
     - name: Deploy to Easypanel
       uses: fjogeleit/http-request-action@v1
       with:
-        url: '${{ secrets.EASYPANEL_WEBHOOK_URL }}'
+        url: 'https://api.uxday.com.br/api/services/figma-agenti-backend/deploy'
         method: 'POST'
         contentType: 'application/json'
         data: |
