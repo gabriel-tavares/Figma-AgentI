@@ -975,9 +975,15 @@ figma.ui.onmessage = async (msg) => {
         const data = await response.json();
         console.log("🔍 [DEBUG] Resposta da API:", data);
         console.log("🔍 [DEBUG] Status da resposta:", response.status);
+        console.log("🔍 [DEBUG] Array respostas:", data.respostas);
+        console.log("🔍 [DEBUG] Primeira resposta:", data.respostas?.[0]);
         let blocos = [];
         if (data && Array.isArray(data.respostas)) {
             blocos = data.respostas;
+            console.log("🔍 [DEBUG] Blocos extraídos:", blocos.length);
+        }
+        else {
+            console.log("❌ [DEBUG] Erro: respostas não é um array ou está vazio");
         }
         // 🔧 anti-split: une "Sem título" + próximo que começa com "Hipótese Título do Card:"
         if (blocos.length >= 2 && /^Sem título/i.test(blocos[0]) && /^Hipótese Título do Card:/i.test(blocos[1])) {
