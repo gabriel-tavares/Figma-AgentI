@@ -1,0 +1,25 @@
+name: Deploy to Easypanel
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'back/**' ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to Easypanel
+      uses: fjogeleit/http-request-action@v1
+      with:
+        url: '${{ secrets.EASYPANEL_WEBHOOK_URL }}'
+        method: 'POST'
+        contentType: 'application/json'
+        data: |
+          {
+            "ref": "refs/heads/main",
+            "repository": {
+              "full_name": "gabriel-tavares/Figma-AgentI"
+            }
+          }
