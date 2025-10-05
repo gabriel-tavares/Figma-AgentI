@@ -917,8 +917,10 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
 
   for (let i = 0; i < orderedSelection.length; i++) {
     const node = orderedSelection[i] as SceneNode;
-    if (isFrameLike(node) && !frameLooksLikeScreenshot(node)) {
-      // ➜ FigmaSpec
+    
+    // 🔄 NOVA LÓGICA: Sempre capturar FIGMASPEC + IMAGEM para orquestrador completo
+    if (isFrameLike(node)) {
+      // ➜ 1. FigmaSpec (para Agente A - JSON Analyst)
       const spec = await buildFigmaSpecFromFrame(
         node as any,
         orderedSelection.length === 1 ? layoutNameFromFigma : undefined
@@ -929,8 +931,26 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
         spec.meta.contextUser = String(descricao).trim();
       }
       figmaSpecs.push(spec);
-          } else {
-      // ➜ Vision (imagem)
+      
+      // ➜ 2. Imagem (para Agente B - Vision Reviewer)
+      if ("exportAsync" in (node as any)) {
+        try {
+          const bytes = await (node as any as ExportMixin).exportAsync({ 
+            format: "PNG", 
+            constraint: { type: "SCALE", value: 1 } 
+          });
+          const b64 = uint8ToBase64(bytes);
+          imagensBase64.push("data:image/png;base64," + b64);
+        } catch (e) { 
+          console.warn(`Erro ao exportar imagem do frame ${node.name}:`, e);
+          imagensBase64.push(null); 
+        }
+      } else { 
+        imagensBase64.push(null); 
+      }
+    } else {
+      // ➜ Não é frame: apenas imagem (fallback para compatibilidade)
+      figmaSpecs.push(null);
       if ("exportAsync" in (node as any)) {
         try {
           const bytes = await (node as any as ExportMixin).exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 1 } });

@@ -1394,7 +1394,8 @@ const normalizeImageUrl = (u) =>
       const spec    = hasSpec ? figmaSpecs[i] : null;
 
       console.log(`\n📱 Processando item ${i+1}/${N}:`);
-      status(group, "Entrada", true, hasSpec ? "figmaSpec" : (hasImg ? "imagem" : "-"));
+      const entradaStatus = hasSpec && hasImg ? "figmaSpec + imagem" : (hasSpec ? "figmaSpec" : (hasImg ? "imagem" : "-"));
+      status(group, "Entrada", true, entradaStatus);
 
       // Descobrir W/H: usa canvas do spec, body (canvas) ou probe
       let W = null, H = null;
