@@ -571,36 +571,77 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
         const thread = await threadResponse.json();
         logger.info(`🔄 Agente B: Thread criada: ${thread.id}`);
         
-        // Adicionar mensagem com imagem (SIMPLIFICADA)
-        const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-            "OpenAI-Beta": "assistants=v2"
-          },
-          body: JSON.stringify({
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Por favor, analise esta interface usando ${metodo}. Retorne um JSON com achados de UX.`
-              },
-              {
-                type: "image_url",
-                image_url: { url: imageBase64 }
-              }
-            ]
-          })
-        });
-        
-        if (!messageResponse.ok) {
-          const msgError = await messageResponse.json();
-          logger.error(`🔄 Agente B: Erro ao adicionar mensagem: ${JSON.stringify(msgError)}`);
+        // CORREÇÃO: Upload da imagem como arquivo para Assistants API
+        let uploadedFileId = null;
+        try {
+          // Converter base64 para buffer
+          const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+          const imageBuffer = Buffer.from(base64Data, 'base64');
+          
+          // Criar FormData para upload
+          const FormData = require('form-data');
+          const formData = new FormData();
+          formData.append('file', imageBuffer, {
+            filename: 'interface.png',
+            contentType: 'image/png'
+          });
+          formData.append('purpose', 'vision');
+          
+          // Upload do arquivo
+          const uploadResponse = await fetch('https://api.openai.com/v1/files', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+              ...formData.getHeaders()
+            },
+            body: formData
+          });
+          
+          if (!uploadResponse.ok) {
+            const uploadError = await uploadResponse.json();
+            logger.error(`🔄 Agente B: Erro no upload: ${JSON.stringify(uploadError)}`);
+            return null;
+          }
+          
+          const uploadResult = await uploadResponse.json();
+          uploadedFileId = uploadResult.id;
+          logger.info(`🔄 Agente B: Arquivo uploadado: ${uploadedFileId}`);
+          
+          // Adicionar mensagem com arquivo
+          const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+              "Content-Type": "application/json",
+              "OpenAI-Beta": "assistants=v2"
+            },
+            body: JSON.stringify({
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Por favor, analise esta interface usando ${metodo}. Retorne um JSON com achados de UX.`
+                },
+                {
+                  type: "image_file",
+                  image_file: { file_id: uploadedFileId }
+                }
+              ]
+            })
+          });
+          
+          if (!messageResponse.ok) {
+            const msgError = await messageResponse.json();
+            logger.error(`🔄 Agente B: Erro ao adicionar mensagem: ${JSON.stringify(msgError)}`);
+            return null;
+          }
+          
+          logger.info(`🔄 Agente B: Mensagem com arquivo adicionada`);
+          
+        } catch (uploadErr) {
+          logger.error(`🔄 Agente B: Erro no processo de upload: ${uploadErr.message}`);
           return null;
         }
-        
-        logger.info(`🔄 Agente B: Mensagem com imagem adicionada`);
         
         // Executar run (SEM response_format para testar)
         const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
@@ -694,6 +735,21 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
             logger.error(`🔄 Agente B: Error details: ${JSON.stringify(runStatus.last_error)}`);
           }
           logger.error(`🔄 Agente B: Full run status: ${JSON.stringify(runStatus, null, 2)}`);
+        }
+        
+        // Limpeza: deletar arquivo uploadado
+        if (uploadedFileId) {
+          try {
+            await fetch(`https://api.openai.com/v1/files/${uploadedFileId}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+              }
+            });
+            logger.info(`🔄 Agente B: Arquivo ${uploadedFileId} deletado`);
+          } catch (deleteErr) {
+            logger.warn(`🔄 Agente B: Erro ao deletar arquivo: ${deleteErr.message}`);
+          }
         }
         
       } catch (assistantError) {
