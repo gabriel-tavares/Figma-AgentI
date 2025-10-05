@@ -295,12 +295,6 @@ function limparArquivosTemporarios() {
   }
 }
 
-// Executar limpeza na inicialização
-limparArquivosTemporarios();
-
-// Executar limpeza a cada 6 horas
-setInterval(limparArquivosTemporarios, 6 * 60 * 60 * 1000);
-
 // Config
 /** =========================
  * Configurações globais
@@ -334,6 +328,12 @@ const DEBUG_FILES_RETENTION_DAYS = parseInt(process.env.DEBUG_FILES_RETENTION_DA
 
 // Análise de imagens no figmaSpec
 const ANALYZE_IMAGES = /^(1|true|on|yes)$/i.test(process.env.ANALYZE_IMAGES || "true");
+
+// Executar limpeza na inicialização
+limparArquivosTemporarios();
+
+// Executar limpeza a cada 6 horas
+setInterval(limparArquivosTemporarios, 6 * 60 * 60 * 1000);
 
 
 
