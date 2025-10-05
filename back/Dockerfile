@@ -44,7 +44,7 @@ RUN echo "NODE_ENV=production" > .env && \
     echo "MODELO_VISION=gpt-4o-mini" >> .env && \
     echo "" >> .env && \
     echo "# Análise Heurística - Texto (TIER 1 para qualidade, TIER 2 para volume)" >> .env && \
-    echo "MODELO_TEXTO=gpt-4o" >> .env && \
+    echo "MODELO_TEXTO=gpt-5-mini" >> .env && \
     echo "" >> .env && \
     echo "# Configurações de temperatura e tokens" >> .env && \
     echo "TEMP_VISION=0.1" >> .env && \
