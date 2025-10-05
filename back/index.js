@@ -390,6 +390,17 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
           logger.info(`🔄 Agente A: Output[1] content type: ${typeof result.output[1].content}`);
           if (Array.isArray(result.output[1].content)) {
             logger.info(`🔄 Agente A: Output[1] content length: ${result.output[1].content.length}`);
+            if (result.output[1].content[0]) {
+              logger.info(`🔄 Agente A: Output[1] content[0] keys: ${Object.keys(result.output[1].content[0]).join(', ')}`);
+              if (result.output[1].content[0].text) {
+                logger.info(`🔄 Agente A: Output[1] content[0].text type: ${typeof result.output[1].content[0].text}`);
+                if (typeof result.output[1].content[0].text === 'object') {
+                  logger.info(`🔄 Agente A: Output[1] content[0].text keys: ${Object.keys(result.output[1].content[0].text).join(', ')}`);
+                }
+              }
+            }
+          } else {
+            logger.info(`🔄 Agente A: Output[1] content keys: ${Object.keys(result.output[1].content).join(', ')}`);
           }
         }
       }
@@ -405,35 +416,35 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       // Tentar diferentes formas de extrair o conteúdo
       let content = null;
       
-      // Método 1: result.output[1].content (direto - para Responses API)
-      if (result.output?.[1]?.content && typeof result.output[1].content === 'string') {
-        content = result.output[1].content;
+      // Método 1: result.output[1].content[0].text.value (estrutura completa)
+      if (result.output?.[1]?.content?.[0]?.text?.value) {
+        content = result.output[1].content[0].text.value;
         logger.info(`🔄 Agente A: Content extraído via method 1: ${content.length} chars`);
       }
-      // Método 2: result.output[1].content[0].text.value (array format)
-      else if (result.output?.[1]?.content?.[0]?.text?.value) {
-        content = result.output[1].content[0].text.value;
+      // Método 2: result.output[1].content[0].text (sem .value)
+      else if (result.output?.[1]?.content?.[0]?.text && typeof result.output[1].content[0].text === 'string') {
+        content = result.output[1].content[0].text;
         logger.info(`🔄 Agente A: Content extraído via method 2: ${content.length} chars`);
       }
-      // Método 3: result.output[0].content[0].text.value (fallback para output[0])
-      else if (result.output?.[0]?.content?.[0]?.text?.value) {
-        content = result.output[0].content[0].text.value;
+      // Método 3: result.output[1].content (direto - para Responses API)
+      else if (result.output?.[1]?.content && typeof result.output[1].content === 'string') {
+        content = result.output[1].content;
         logger.info(`🔄 Agente A: Content extraído via method 3: ${content.length} chars`);
       }
-      // Método 4: result.output_text
-      else if (result.output_text) {
-        content = result.output_text;
+      // Método 4: result.output[0].content[0].text.value (fallback para output[0])
+      else if (result.output?.[0]?.content?.[0]?.text?.value) {
+        content = result.output[0].content[0].text.value;
         logger.info(`🔄 Agente A: Content extraído via method 4: ${content.length} chars`);
       }
-      // Método 5: result.text
+      // Método 5: result.output_text
+      else if (result.output_text) {
+        content = result.output_text;
+        logger.info(`🔄 Agente A: Content extraído via method 5: ${content.length} chars`);
+      }
+      // Método 6: result.text
       else if (result.text !== undefined) {
         content = result.text;
-        logger.info(`🔄 Agente A: Content extraído via method 5: ${typeof content} - ${content ? content.length : 'null/undefined'} chars`);
-      }
-      // Método 6: result.output[0].content[0].text (sem .value)
-      else if (result.output?.[0]?.content?.[0]?.text) {
-        content = result.output[0].content[0].text;
-        logger.info(`🔄 Agente A: Content extraído via method 6: ${content.length} chars`);
+        logger.info(`🔄 Agente A: Content extraído via method 6: ${typeof content} - ${content ? content.length : 'null/undefined'} chars`);
       }
       
       if (content) {
