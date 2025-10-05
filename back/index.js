@@ -1130,15 +1130,57 @@ const normalizeImageUrl = (u) =>
         const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
         
         // Para figmaSpec, sempre incluir os dados no prompt (RAG não acessa arquivos locais)
+        // Mas truncar se for muito grande para evitar estourar limites de tokens
+        let figmaData = "";
+        if (hasSpec) {
+          const jsonString = JSON.stringify(spec, null, 2);
+          const maxJsonSize = 40000; // ~10k tokens
+          
+          if (jsonString.length > maxJsonSize) {
+            // Truncar mantendo estrutura essencial
+            const truncatedSpec = {
+              canvas: spec.canvas,
+              components: spec.components?.slice(0, 20), // Primeiros 20 componentes
+              typography: spec.typography,
+              palette: spec.palette,
+              contrastPairs: spec.contrastPairs?.slice(0, 10),
+              meta: spec.meta
+            };
+            figmaData = JSON.stringify(truncatedSpec, null, 2);
+            logger.info(`   figmaSpec truncado: ${jsonString.length} → ${figmaData.length} chars`);
+          } else {
+            figmaData = jsonString;
+          }
+        }
+        
         const mensagemMinima = [
           `metodo: ${metodo}`,
           `contexto: ${descricao || "Nenhum."}`,
           hasSpec ? `figma_spec_json:` : `descricao_json:`,
-          hasSpec ? JSON.stringify(spec, null, 2) : visionDataLimited
+          hasSpec ? figmaData : visionDataLimited
         ].filter(Boolean).join("\n");
         // Usa o prompt do Assistant, se houver, como base. Se não, usa fallback.
         let instr = buildHeurInstruction(metodo);
         
+        
+        // Verificar se o prompt final não vai estourar limites
+        const totalPromptLength = instr.length + mensagemMinima.length;
+        const estimatedTokens = Math.ceil(totalPromptLength / 4);
+        const maxAllowedTokens = maxTokens * 0.7; // 70% do limite para deixar espaço para resposta
+        
+        if (estimatedTokens > maxAllowedTokens) {
+          logger.warn(`   Prompt muito grande: ${estimatedTokens} tokens (limite: ${maxAllowedTokens})`);
+          // Reduzir ainda mais o figmaSpec se necessário
+          if (hasSpec && figmaData.length > 20000) {
+            const minimalSpec = {
+              canvas: spec.canvas,
+              components: spec.components?.slice(0, 10),
+              meta: spec.meta
+            };
+            figmaData = JSON.stringify(minimalSpec, null, 2);
+            logger.info(`   figmaSpec reduzido para mínimo: ${figmaData.length} chars`);
+          }
+        }
         
         // Verificar se é modelo O3 e reduzir prompt se necessário
         const isO3Model = /^o3/i.test(MODELO_TEXTO);
