@@ -1593,7 +1593,7 @@ app.get("/last-vision.json", (req, res) => {
 });
 
 app.get("/", (_req, res) => {
-  res.send("[OK] Backend rodando com Vision ➜ Assistant (v2) + status logs.");
+  res.send("[OK] Backend rodando com Vision ➜ Assistant (v2) + status logs. Deploy automático ativo!");
 });
 
 const PORT = process.env.PORT || 3000;
