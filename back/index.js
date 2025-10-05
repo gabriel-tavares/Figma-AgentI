@@ -515,12 +515,12 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
             { type: "image_url", image_url: { url: imageBase64 } }
           ]
         }],
-        max_tokens: 4096,
-        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+        max_tokens: 4096
+        // RAG removido: Chat Completions com imagem não suporta file_search
       };
       
       logger.info(`🔄 Agente B: Enviando para Chat Completions (fallback)`);
-      logger.info(`🔄 Agente B: Prompt ${instruction.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
+      logger.info(`🔄 Agente B: Prompt ${instruction.length} chars, RAG: DISABLED (incompatível com vision)`);
       
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -562,12 +562,12 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
             { type: "image_url", image_url: { url: imageBase64 } }
           ]
         }],
-        max_tokens: 4096,
-        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+        max_tokens: 4096
+        // RAG removido: Chat Completions com imagem não suporta file_search
       };
       
       logger.info(`🔄 Agente B: Enviando para Chat Completions (${MODELO_AGENTE_B})`);
-      logger.info(`🔄 Agente B: Prompt ${instruction.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
+      logger.info(`🔄 Agente B: Prompt ${instruction.length} chars, RAG: DISABLED (incompatível com vision)`);
       
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
