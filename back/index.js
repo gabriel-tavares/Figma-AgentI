@@ -1164,6 +1164,13 @@ const normalizeImageUrl = (u) =>
         
         
         // Verificar se o prompt final não vai estourar limites
+        // Ajustar tokens para modelos O3 (limite TPM menor)
+        let maxTokens = MAXTOK_TEXTO;
+        const isO3Model = /^o3/i.test(MODELO_TEXTO);
+        if (isO3Model) {
+          maxTokens = Math.min(MAXTOK_TEXTO, 4000);
+        }
+        
         const totalPromptLength = instr.length + mensagemMinima.length;
         const estimatedTokens = Math.ceil(totalPromptLength / 4);
         const maxAllowedTokens = maxTokens * 0.7; // 70% do limite para deixar espaço para resposta
@@ -1181,9 +1188,6 @@ const normalizeImageUrl = (u) =>
             logger.info(`   figmaSpec reduzido para mínimo: ${figmaData.length} chars`);
           }
         }
-        
-        // Verificar se é modelo O3 e reduzir prompt se necessário
-        const isO3Model = /^o3/i.test(MODELO_TEXTO);
         if (isO3Model && instr.length > 8000) {
           // Versão reduzida do prompt para O3
           instr = `Você é um especialista em análise heurística de interfaces digitais.
@@ -1440,7 +1444,7 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
       }
 
       // 2) Análise heurística usando prompt direto
-      if (!ASSISTANT_ID) {
+      if (!USE_RESPONSES) {
         // Usar prompt direto para análise heurística
         const heurInstruction = buildHeurInstruction(metodo);
         const promptCompleto = `${heurInstruction}\n\nJSON do layout:\n${visionPretty || raw}`;
