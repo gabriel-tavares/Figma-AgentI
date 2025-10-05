@@ -1,4 +1,4 @@
-name: Deploy to EasyPanel
+name: Notify Deploy Needed
 
 on:
   push:
@@ -7,18 +7,13 @@ on:
       - 'back/**'
 
 jobs:
-  deploy:
+  notify:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Trigger EasyPanel Deploy
+    - name: Notify Deploy Needed
       run: |
-        curl -X POST "${{ secrets.EASYPANEL_WEBHOOK_URL }}" \
-          -H "Content-Type: application/json" \
-          -d '{
-            "ref": "refs/heads/main",
-            "repository": {
-              "name": "Figma-AgentI",
-              "full_name": "gabriel-tavares/Figma-AgentI"
-            }
-          }'
+        echo "🚀 Deploy needed for Figma-AgentI backend!"
+        echo "📁 Changed files in back/ directory"
+        echo "🔧 Please go to EasyPanel and click 'Implantar'"
+        echo "🌐 EasyPanel URL: https://easypanel.io/projects/figma-agenti"
