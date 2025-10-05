@@ -573,7 +573,8 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
           logger.warn(`🔄 Agente B: RAG não retornou contexto`);
         }
       } else {
-        logger.warn(`🔄 Agente B: Erro na busca RAG: ${ragResponse.status}`);
+        const ragError = await ragResponse.json();
+        logger.warn(`🔄 Agente B: Erro na busca RAG: ${ragResponse.status} - ${JSON.stringify(ragError)}`);
       }
     }
     
@@ -642,13 +643,18 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
   const fullPrompt = [prompt, "", mensagem].join("\n");
   
   try {
+    logger.info(`🔄 Agente C: Iniciando reconciliação de ${(achadosA.achados?.length || 0) + (achadosB.achados?.length || 0)} achados`);
+    
     // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
-    const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_C);
+    const modeloAgenteC = process.env.MODELO_AGENTE_C || "gpt-4o-mini";
+    const isResponsesModel = /^(gpt-5|o3|o4)/i.test(modeloAgenteC);
+    
+    logger.info(`🔄 Agente C: Usando modelo ${modeloAgenteC} via ${isResponsesModel ? 'Responses' : 'Chat Completions'} API`);
     
     if (isResponsesModel) {
       // Usar Responses API para GPT-5, O3, etc.
       const body = {
-        model: MODELO_AGENTE_C,
+        model: modeloAgenteC,
         input: fullPrompt,
         max_output_tokens: 8000,
         ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
@@ -663,20 +669,30 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         body: JSON.stringify(body)
       });
       
+      logger.info(`🔄 Agente C: Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        logger.error(`🔄 Agente C: Responses API Error: ${JSON.stringify(error)}`);
+        return null;
+      }
+      
       const result = await response.json();
-      const content = result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
+      const content = result.output?.[1]?.content?.[0]?.text || result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
       
       if (content) {
+        logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
         const cleanContent = stripCodeFence(content);
         return JSON.parse(cleanContent);
       }
     } else {
       // Usar Chat Completions para GPT-4, etc.
       const body = {
-        model: MODELO_AGENTE_C,
+        model: modeloAgenteC,
         messages: [{ role: "user", content: fullPrompt }],
         max_tokens: 8000,
-        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+        temperature: 0.1,
+        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", file_search: { vector_store_ids: [vectorStoreId] } }] } : {})
       };
       
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -688,18 +704,30 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         body: JSON.stringify(body)
       });
       
+      logger.info(`🔄 Agente C: Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        logger.error(`🔄 Agente C: Chat Completions API Error: ${JSON.stringify(error)}`);
+        return null;
+      }
+      
       const result = await response.json();
       const content = result.choices?.[0]?.message?.content;
       
       if (content) {
+        logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
+        logger.info(`🔄 Agente C: Content preview: ${content.substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
         return JSON.parse(cleanContent);
       }
     }
     
+    logger.warn(`🔄 Agente C: No content received from API`);
     return null;
   } catch (e) {
-    logger.error(`Erro no Agente C: ${e.message}`);
+    logger.error(`❌ Erro no Agente C: ${e.message}`);
+    logger.error(`❌ Stack trace: ${e.stack}`);
     return null;
   }
 }
