@@ -60,9 +60,9 @@ const sec = (ms) => Number(ms/1000).toFixed(2);
  */
 async function analyzeImagesInFigmaSpec(figmaSpec, HEADERS_VISION, modeloVision) {
   
-    if (!ANALYZE_IMAGES || !figmaSpec || !figmaSpec.components) {
-      return figmaSpec;
-    }
+  if (!ANALYZE_IMAGES || !figmaSpec || !figmaSpec.components) {
+    return figmaSpec;
+  }
 
   try {
     // Detectar componentes com imagens
@@ -272,7 +272,7 @@ function limparArquivosTemporarios() {
           const idade = agora - stats.mtime.getTime();
           
           if (idade > maxAge) {
-            fs.unlinkSync(filePath);
+          fs.unlinkSync(filePath);
             removidos++;
           }
         } catch (e) {
@@ -311,13 +311,154 @@ const modeloVision = process.env.MODELO_VISION || "gpt-4.1-mini";
 const tempVision = Number(process.env.TEMP_VISION || 0.1);
 const maxTokensVision = Number(process.env.MAX_TOKENS_VISION || 20000);
 
-// Loop Toggles e modelos para etapa textual (Responses GPT‑5 vs Assistants)
-// Forçar USE_RESPONSES=true (modo completo sempre ativo)
-const USE_RESPONSES_DEFAULT = true; // /^(1|true|on|yes)$/i.test(process.env.USE_RESPONSES || "true");
+// Variáveis de ambiente dos agentes
+const MODELO_AGENTE_A = process.env.MODELO_AGENTE_A || "gpt-5-mini";
+const MODELO_AGENTE_B = process.env.MODELO_AGENTE_B || "gpt-4o-mini";  
+const MODELO_AGENTE_C = process.env.MODELO_AGENTE_C || "o3-mini";
+
+// Agente A - JSON Analyst
+async function runAgentA(figmaSpec, metodo, vectorStoreId) {
+  const prompt = loadAgentPrompt('agente-a-json-analyst');
+  if (!prompt) return null;
+  
+  const instruction = prompt.replaceAll("${metodo}", metodo);
+  const figmaData = JSON.stringify(figmaSpec, null, 2);
+  
+  const mensagem = [
+    `metodo: ${metodo}`,
+    `dados_figma:`,
+    figmaData
+  ].join("\n");
+  
+  const fullPrompt = [instruction, "", "DADOS:", mensagem].join("\n");
+  
+  try {
+    const body = {
+      model: MODELO_AGENTE_A,
+      input: fullPrompt,
+      max_output_tokens: 20000,
+      ...(USE_RAG && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+    };
+    
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST", 
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODELO_AGENTE_A,
+        messages: [{ role: "user", content: fullPrompt }],
+        max_tokens: 20000
+      })
+    });
+    
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    
+    if (content) {
+      const cleanContent = stripCodeFence(content);
+      return JSON.parse(cleanContent);
+    }
+    
+    return null;
+  } catch (e) {
+    logger.error(`Erro no Agente A: ${e.message}`);
+    return null;
+  }
+}
+
+// Agente B - Vision Reviewer  
+async function runAgentB(imageBase64, metodo) {
+  const prompt = loadAgentPrompt('agente-b-vision-reviewer');
+  if (!prompt) return null;
+  
+  const instruction = prompt.replaceAll("${metodo}", metodo);
+  
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODELO_AGENTE_B,
+        messages: [{
+          role: "user", 
+          content: [
+            { type: "text", text: instruction },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
+          ]
+        }],
+        max_tokens: 4096
+      })
+    });
+    
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    
+    if (content) {
+      const cleanContent = stripCodeFence(content);
+      return JSON.parse(cleanContent);
+    }
+    
+    return null;
+  } catch (e) {
+    logger.error(`Erro no Agente B: ${e.message}`);
+    return null;
+  }
+}
+
+// Agente C - Reconciler
+async function runAgentC(achadosA, achadosB, metodo) {
+  const prompt = loadAgentPrompt('agente-c-reconciler');
+  if (!prompt) return null;
+  
+  const mensagem = [
+    `heuristica: "${metodo}"`,
+    `achadosA: ${JSON.stringify(achadosA, null, 2)}`,
+    `achadosB: ${JSON.stringify(achadosB, null, 2)}`
+  ].join("\n");
+  
+  const fullPrompt = [prompt, "", mensagem].join("\n");
+  
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODELO_AGENTE_C,
+        messages: [{ role: "user", content: fullPrompt }],
+        max_tokens: 8000
+      })
+    });
+    
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    
+    if (content) {
+      const cleanContent = stripCodeFence(content);
+      return JSON.parse(cleanContent);
+    }
+    
+    return null;
+  } catch (e) {
+    logger.error(`Erro no Agente C: ${e.message}`);
+    return null;
+  }
+}
 const MODELO_TEXTO  = process.env.MODELO_TEXTO || "gpt-5";
 const MODELOS_SEM_TEMPERATURA = [/^gpt-5/i, /^o3/i, /^o4/i];
 const TEMP_TEXTO    = Number(process.env.TEMP_TEXTO || 0.2);
 const MAXTOK_TEXTO  = Number(process.env.MAX_TOKENS_TEXTO || 4000);
+
+// Loop Toggles e modelos para etapa textual (Responses GPT‑5 vs Assistants)
+// Forçar USE_RESPONSES=true (modo completo sempre ativo)
+const USE_RESPONSES_DEFAULT = true; // /^(1|true|on|yes)$/i.test(process.env.USE_RESPONSES || "true");
 
 // RAG (File Search / Vector Store)
 const USE_RAG_DEFAULT = /^(1|true|on|yes)$/i.test(process.env.USE_RAG || "");
@@ -429,12 +570,12 @@ if (!OPENAI_API_KEY) {
 
   // LOG de roteamento (sem vazar a chave)
   if (process.env.NODE_ENV === 'development') {
-    const mask = (s) => (s ? s.slice(0, 7) + "..." : "(vazio)");
+      const mask = (s) => (s ? s.slice(0, 7) + "..." : "(vazio)");
     logger.debug("ROUTING",
-      "| project:", OPENAI_PROJECT_ID || "(sem header)",
-      "| org:", OPENAI_ORG || "(sem header)",
-      "| key:", process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.slice(0, 10) + "..." : "(sem)"
-    );
+        "| project:", OPENAI_PROJECT_ID || "(sem header)",
+        "| org:", OPENAI_ORG || "(sem header)",
+        "| key:", process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.slice(0, 10) + "..." : "(sem)"
+      );
   }
 
   /** Logger de status compacto */
@@ -513,16 +654,27 @@ if (!OPENAI_API_KEY) {
   return s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
 };
 
-function buildHeurInstruction(metodo) {
-  // Tentar ler o prompt do arquivo heuristica.txt
+// Carrega prompts dos agentes
+function loadAgentPrompt(agentName) {
   try {
-    const promptPath = path.join(__dirname, 'prompts', 'heuristica.txt');
+    const promptPath = path.join(__dirname, 'prompts', `${agentName}.txt`);
     const promptContent = fs.readFileSync(promptPath, 'utf8').trim();
-    logger.info(`📝 Prompt carregado de heuristica.txt (${promptContent.length} chars)`);
-    return promptContent.replaceAll("${metodo}", metodo);
+    logger.info(`📝 Prompt carregado: ${agentName} (${promptContent.length} chars)`);
+    return promptContent;
   } catch (e) {
-    logger.warn(`Não foi possível ler prompts/heuristica.txt:`, e.message);
-    logger.info(`📝 Usando prompt fallback`);
+    logger.warn(`Não foi possível ler prompts/${agentName}.txt:`, e.message);
+    return null;
+  }
+}
+
+function buildHeurInstruction(metodo) {
+  // Usar o prompt do Agente A (JSON Analyst)
+  const prompt = loadAgentPrompt('agente-a-json-analyst');
+  if (prompt) {
+    return prompt.replaceAll("${metodo}", metodo);
+  }
+  
+  logger.info(`📝 Usando prompt fallback`);
     // Fallback compactado baseado no heuristica.txt (formato JSON)
     return `Você é um especialista em UX com foco em análise heurística de interfaces digitais.
 
@@ -996,10 +1148,10 @@ const normalizeImageUrl = (u) =>
         if (typeof spec === 'string') {
           try {
             parsed = JSON.parse(spec);
-        } catch (e) {
+          } catch (e) {
           console.warn(`[DEBUG] Erro ao fazer parse do spec: ${e.message}`);
-          parsed = null;
-        }
+            parsed = null;
+          }
         } else {
           parsed = spec;
         }
@@ -1129,9 +1281,9 @@ const normalizeImageUrl = (u) =>
       status(group, "RAG", true, USE_RAG ? `ON (${vectorStoreId || "sem ID"})` : "OFF");
 
       if (USE_RESPONSES) {
-        // Monta a mensagem mínima para a etapa textual
-        const visionData = visionPretty || raw;
-        const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
+      // Monta a mensagem mínima para a etapa textual
+      const visionData = visionPretty || raw;
+      const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
         
         // Para figmaSpec, sempre incluir os dados no prompt (RAG não acessa arquivos locais)
         // Mas truncar se for muito grande para evitar estourar limites de tokens
@@ -1156,13 +1308,13 @@ const normalizeImageUrl = (u) =>
             figmaData = jsonString;
           }
         }
-        
-        const mensagemMinima = [
-          `metodo: ${metodo}`,
-          `contexto: ${descricao || "Nenhum."}`,
+      
+      const mensagemMinima = [
+        `metodo: ${metodo}`,
+        `contexto: ${descricao || "Nenhum."}`,
           hasSpec ? `dados_figma:` : `dados_imagem:`,
           hasSpec ? figmaData : visionDataLimited
-        ].filter(Boolean).join("\n");
+      ].filter(Boolean).join("\n");
         // Usa o prompt do Assistant, se houver, como base. Se não, usa fallback.
         let instr = buildHeurInstruction(metodo);
         
@@ -1245,17 +1397,17 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
 
         // figmaSpecFile foi removido - sempre usar dados inline agora
         const figmaSpecFile = null;
-        
+
         const prompt = [instr2.replaceAll("${metodo}", metodo), "", "DADOS:", mensagemMinima].join("\n");
 
         // Salvar prompt do figmaSpec para debug
         if (process.env.NODE_ENV === 'development') {
-          try {
-            const debugDir = path.join(__dirname, "debug_responses");
-            fs.mkdirSync(debugDir, { recursive: true });
-            const promptFile = path.join(debugDir, `prompt_item${i+1}.txt`);
-            fs.writeFileSync(promptFile, prompt, 'utf8');
-          } catch (e) {
+        try {
+          const debugDir = path.join(__dirname, "debug_responses");
+          fs.mkdirSync(debugDir, { recursive: true });
+          const promptFile = path.join(debugDir, `prompt_item${i+1}.txt`);
+          fs.writeFileSync(promptFile, prompt, 'utf8');
+        } catch (e) {
             console.warn(`   ⚠️ Erro ao salvar prompt: ${e.message}`);
           }
         }
