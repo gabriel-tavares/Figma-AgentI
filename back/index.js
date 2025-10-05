@@ -1125,51 +1125,16 @@ const normalizeImageUrl = (u) =>
       status(group, "RAG", true, USE_RAG ? `ON (${vectorStoreId || "sem ID"})` : "OFF");
 
       if (USE_RESPONSES) {
-        // Salvar figmaSpec em arquivo temporário para consulta da IA
-        let figmaSpecFile = null;
-        if (hasSpec && spec) {
-          try {
-            // Tentar primeiro /tmp (sempre tem permissão), depois /app/temp
-            const tempDirs = ["/tmp", path.join(__dirname, "temp")];
-            let tempDir = null;
-            
-            for (const dir of tempDirs) {
-              try {
-                fs.mkdirSync(dir, { recursive: true });
-                // Testar se consegue escrever
-                const testFile = path.join(dir, 'test_write.tmp');
-                fs.writeFileSync(testFile, 'test');
-                fs.unlinkSync(testFile);
-                tempDir = dir;
-                break;
-              } catch (e) {
-                logger.debug(`Diretório ${dir} não disponível: ${e.message}`);
-              }
-            }
-            
-            if (tempDir) {
-              figmaSpecFile = path.join(tempDir, `figma_spec_item${i+1}.json`);
-              fs.writeFileSync(figmaSpecFile, JSON.stringify(spec, null, 2), 'utf8');
-              logger.debug(`figmaSpec salvo em: ${figmaSpecFile}`);
-            } else {
-              throw new Error("Nenhum diretório temporário disponível");
-            }
-          } catch (e) {
-            logger.warn(`   Erro ao salvar figmaSpec: ${e.message}`);
-            logger.info(`   Fallback: enviando figmaSpec no prompt (sem arquivo)`);
-            figmaSpecFile = null; // Força fallback para prompt inline
-          }
-        }
-        
         // Monta a mensagem mínima para a etapa textual
         const visionData = visionPretty || raw;
         const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
         
+        // Para figmaSpec, sempre incluir os dados no prompt (RAG não acessa arquivos locais)
         const mensagemMinima = [
           `metodo: ${metodo}`,
           `contexto: ${descricao || "Nenhum."}`,
-          figmaSpecFile ? `figma_spec_arquivo: ${figmaSpecFile}` : `descricao_json:`,
-          figmaSpecFile ? "" : visionDataLimited
+          hasSpec ? `figma_spec_json:` : `descricao_json:`,
+          hasSpec ? JSON.stringify(spec, null, 2) : visionDataLimited
         ].filter(Boolean).join("\n");
         // Usa o prompt do Assistant, se houver, como base. Se não, usa fallback.
         let instr = buildHeurInstruction(metodo);
@@ -1249,7 +1214,7 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
 
         // Log do prompt reduzido
         const estimatedTokens = Math.ceil(prompt.length / 4);
-        const promptType = figmaSpecFile ? "prompt + arquivo" : "prompt completo";
+        const promptType = hasSpec ? "prompt + figmaSpec inline" : "prompt + vision data";
         console.log(`   📝 Prompt: ${prompt.length.toLocaleString()} chars (~${estimatedTokens.toLocaleString()} tokens), Tipo: ${promptType}`);
         
 
