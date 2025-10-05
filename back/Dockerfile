@@ -50,7 +50,7 @@ RUN echo "NODE_ENV=production" > .env && \
     echo "TEMP_VISION=0.1" >> .env && \
     echo "TEMP_TEXTO=0.2" >> .env && \
     echo "MAX_TOKENS_VISION=4096" >> .env && \
-    echo "MAX_TOKENS_TEXTO=8192" >> .env && \
+    echo "MAX_TOKENS_TEXTO=50000" >> .env && \
     echo "" >> .env && \
     echo "# Outras configurações" >> .env && \
     echo "CLEANUP_TEMP_FILES=true" >> .env && \
