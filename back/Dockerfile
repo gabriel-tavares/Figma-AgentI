@@ -55,6 +55,7 @@ RUN echo "NODE_ENV=production" > .env && \
     echo "" >> .env && \
     echo "# Outras configurações" >> .env && \
     echo "CLEANUP_TEMP_FILES=true" >> .env && \
+    echo "DEBUG_FILES_RETENTION_DAYS=7" >> .env && \
     echo "RETRY_ATTEMPTS=3" >> .env && \
     echo "RETRY_DELAY=1000" >> .env && \
     echo "CORS_ORIGIN=https://www.figma.com" >> .env && \

@@ -241,8 +241,9 @@ function limparArquivosTemporarios() {
     const tempDir = path.join(__dirname, "temp");
     const debugDir = path.join(__dirname, "debug_responses");
     const debugLayoutsDir = path.join(__dirname, "debug_layouts");
+    const debugVisionDir = path.join(__dirname, "debug_vision");
     
-    // Limpar pasta temp
+    // Limpar pasta temp (sempre limpar)
     if (fs.existsSync(tempDir)) {
       const files = fs.readdirSync(tempDir);
       files.forEach(file => {
@@ -250,40 +251,55 @@ function limparArquivosTemporarios() {
         try {
           fs.unlinkSync(filePath);
         } catch (e) {
-          console.warn(`⚠️ Erro ao remover temp/${file}: ${e.message}`);
+          logger.warn(`Erro ao remover temp/${file}: ${e.message}`);
         }
       });
     }
     
-    // Limpar arquivos de debug antigos (manter apenas os últimos)
-    const debugFiles = ['last.json', 'last_complete.json', 'prompt.txt'];
-    debugFiles.forEach(file => {
-      const filePath = path.join(debugDir, file);
-      if (fs.existsSync(filePath)) {
+    // Função para limpar arquivos antigos (7 dias)
+    const limparArquivosAntigos = (dir, maxDays = 7) => {
+      if (!fs.existsSync(dir)) return;
+      
+      const files = fs.readdirSync(dir);
+      const agora = Date.now();
+      const maxAge = maxDays * 24 * 60 * 60 * 1000; // 7 dias em ms
+      
+      let removidos = 0;
+      files.forEach(file => {
+        const filePath = path.join(dir, file);
         try {
-          fs.unlinkSync(filePath);
+          const stats = fs.statSync(filePath);
+          const idade = agora - stats.mtime.getTime();
+          
+          if (idade > maxAge) {
+            fs.unlinkSync(filePath);
+            removidos++;
+          }
         } catch (e) {
-          console.warn(`⚠️ Erro ao remover debug_responses/${file}: ${e.message}`);
+          logger.warn(`Erro ao verificar/remover ${file}: ${e.message}`);
         }
+      });
+      
+      if (removidos > 0) {
+        logger.info(`Removidos ${removidos} arquivos antigos de ${path.basename(dir)}/`);
       }
-    });
+    };
     
-    // Limpar arquivos de debug layouts antigos
-    const layoutFiles = ['last.json', 'last_raw.json'];
-    layoutFiles.forEach(file => {
-      const filePath = path.join(debugLayoutsDir, file);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (e) {
-          console.warn(`⚠️ Erro ao remover debug_layouts/${file}: ${e.message}`);
-        }
-      }
-    });
+    // Limpar arquivos de debug antigos (configurável via env)
+    limparArquivosAntigos(debugDir, DEBUG_FILES_RETENTION_DAYS);
+    limparArquivosAntigos(debugLayoutsDir, DEBUG_FILES_RETENTION_DAYS);
+    limparArquivosAntigos(debugVisionDir, DEBUG_FILES_RETENTION_DAYS);
+    
   } catch (e) {
-    console.warn(`⚠️ Erro na limpeza de arquivos temporários: ${e.message}`);
+    logger.warn(`Erro na limpeza de arquivos temporários: ${e.message}`);
   }
 }
+
+// Executar limpeza na inicialização
+limparArquivosTemporarios();
+
+// Executar limpeza a cada 6 horas
+setInterval(limparArquivosTemporarios, 6 * 60 * 60 * 1000);
 
 // Config
 /** =========================
@@ -316,6 +332,7 @@ const VECTOR_STORE_ID_ENV = process.env.VECTOR_STORE_ID || "";
 
 // Limpeza de arquivos temporários
 const CLEANUP_TEMP_FILES = /^(1|true|on|yes)$/i.test(process.env.CLEANUP_TEMP_FILES || "true");
+const DEBUG_FILES_RETENTION_DAYS = parseInt(process.env.DEBUG_FILES_RETENTION_DAYS) || 7;
 
 // Análise de imagens no figmaSpec
 const ANALYZE_IMAGES = /^(1|true|on|yes)$/i.test(process.env.ANALYZE_IMAGES || "true");
@@ -1669,10 +1686,10 @@ app.get("/ping-openai", async (_req, res) => {
       }),
     });
     const j = await r.json();
-    console.log("🆔 chatcmpl.id (ping):", j?.id);
+    // Log removido para evitar spam no healthcheck
     res.json({ ok: r.ok, id: j?.id, status: r.status });
   } catch (e) {
-    console.error("[ERROR] Erro ping-openai:", e.message);
+    logger.error("Erro ping-openai:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
