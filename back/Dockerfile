@@ -65,7 +65,8 @@ RUN echo "NODE_ENV=production" > .env && \
 # Criar diretórios necessários e ajustar permissões
 RUN mkdir -p debug_responses debug_layouts debug_vision temp && \
     chown -R nodejs:nodejs /app && \
-    chmod -R 755 /app/temp
+    chmod -R 755 /app && \
+    chmod -R 777 /app/temp
 
 # Mudar para usuário não-root
 USER nodejs
