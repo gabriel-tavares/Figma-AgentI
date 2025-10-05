@@ -1156,7 +1156,7 @@ const normalizeImageUrl = (u) =>
         const mensagemMinima = [
           `metodo: ${metodo}`,
           `contexto: ${descricao || "Nenhum."}`,
-          hasSpec ? `figma_spec_json:` : `descricao_json:`,
+          hasSpec ? `dados_figma:` : `dados_imagem:`,
           hasSpec ? figmaData : visionDataLimited
         ].filter(Boolean).join("\n");
         // Usa o prompt do Assistant, se houver, como base. Se não, usa fallback.
@@ -1256,7 +1256,7 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
 
         // Log do prompt reduzido
         const estimatedTokens = Math.ceil(prompt.length / 4);
-        const promptType = hasSpec ? "prompt + figmaSpec inline" : "prompt + vision data";
+        const promptType = hasSpec ? "prompt + dados Figma" : "prompt + dados imagem";
         console.log(`   📝 Prompt: ${prompt.length.toLocaleString()} chars (~${estimatedTokens.toLocaleString()} tokens), Tipo: ${promptType}`);
         
 
