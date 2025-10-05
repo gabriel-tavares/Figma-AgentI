@@ -1,14 +1,33 @@
 ﻿/** 🌱 Carrega variáveis de ambiente do arquivo .env */
 require("dotenv").config();
 
-// Debug: verificar se as variáveis estão sendo carregadas
-console.log('🔍 DEBUG - Variáveis de ambiente:');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('PORT:', process.env.PORT);
-console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'DEFINIDA' : 'NÃO DEFINIDA');
-console.log('OPENROUTER_API_KEY:', process.env.OPENROUTER_API_KEY ? 'DEFINIDA' : 'NÃO DEFINIDA');
-console.log('VECTOR_STORE_ID:', process.env.VECTOR_STORE_ID ? 'DEFINIDA' : 'NÃO DEFINIDA');
-console.log('ASSISTANT_ID:', process.env.ASSISTANT_ID ? 'DEFINIDA' : 'NÃO DEFINIDA');
+// Sistema de logging padronizado
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
+
+const logger = {
+  error: (msg, ...args) => {
+    if (LOG_LEVELS[LOG_LEVEL] >= LOG_LEVELS.error) {
+      console.error(`❌ [ERROR]`, msg, ...args);
+    }
+  },
+  warn: (msg, ...args) => {
+    if (LOG_LEVELS[LOG_LEVEL] >= LOG_LEVELS.warn) {
+      console.warn(`⚠️ [WARN]`, msg, ...args);
+    }
+  },
+  info: (msg, ...args) => {
+    if (LOG_LEVELS[LOG_LEVEL] >= LOG_LEVELS.info) {
+      console.log(`ℹ️ [INFO]`, msg, ...args);
+    }
+  },
+  debug: (msg, ...args) => {
+    if (LOG_LEVELS[LOG_LEVEL] >= LOG_LEVELS.debug) {
+      console.log(`🔍 [DEBUG]`, msg, ...args);
+    }
+  }
+};
+
 
 /**
  * =========================
@@ -40,55 +59,35 @@ const sec = (ms) => Number(ms/1000).toFixed(2);
  * =========================
  */
 async function analyzeImagesInFigmaSpec(figmaSpec, HEADERS_VISION, modeloVision) {
-  console.log(`🔍 [DEBUG] analyzeImagesInFigmaSpec chamada`);
-  console.log(`🔍 [DEBUG] ANALYZE_IMAGES: ${ANALYZE_IMAGES}`);
-  console.log(`🔍 [DEBUG] figmaSpec existe: ${!!figmaSpec}`);
-  console.log(`🔍 [DEBUG] figmaSpec.components existe: ${!!figmaSpec?.components}`);
-  console.log(`🔍 [DEBUG] Total componentes: ${figmaSpec?.components?.length || 0}`);
   
-  if (!ANALYZE_IMAGES || !figmaSpec || !figmaSpec.components) {
-    console.log(`🔍 [DEBUG] Retornando figmaSpec sem modificações`);
-    return figmaSpec;
-  }
+    if (!ANALYZE_IMAGES || !figmaSpec || !figmaSpec.components) {
+      return figmaSpec;
+    }
 
   try {
-    console.log(`🔍 Analisando imagens no figmaSpec...`);
-    
     // Detectar componentes com imagens
     const imageComponents = figmaSpec.components.filter(comp => 
       comp.media && 
       (comp.media.mediaType === 'image' || comp.media.isPhotograph === true)
     );
 
-    console.log(`🔍 [DEBUG] Componentes com media: ${figmaSpec.components.filter(c => c.media).length}`);
-    console.log(`🔍 [DEBUG] Componentes com mediaType image: ${figmaSpec.components.filter(c => c.media?.mediaType === 'image').length}`);
-    console.log(`🔍 [DEBUG] Componentes com isPhotograph: ${figmaSpec.components.filter(c => c.media?.isPhotograph === true).length}`);
-
     if (imageComponents.length === 0) {
-      console.log(`   ✅ Nenhuma imagem encontrada no layout`);
       return figmaSpec;
     }
 
-    console.log(`   📸 Encontradas ${imageComponents.length} imagem(ns) para análise`);
-
     // Para cada imagem, vamos tentar extrair uma descrição
-    // Nota: No figmaSpec real, não temos URLs das imagens, então vamos usar o contexto
     for (let i = 0; i < imageComponents.length; i++) {
       const comp = imageComponents[i];
-      console.log(`🔍 [DEBUG] Processando imagem ${i+1}: ${comp.label || 'sem label'}`);
       
       // Gerar descrição real usando IA baseada no contexto
       const imageDescription = await generateImageDescription(comp, figmaSpec, HEADERS_VISION, modeloVision);
       
       if (imageDescription) {
-        // Adicionar descrição ao componente
         comp.imageDescription = imageDescription;
-        console.log(`   ✅ Imagem ${i+1}: "${imageDescription.substring(0, 50)}..."`);
       } else {
         // Fallback para descrição baseada no contexto
         const fallbackDescription = `Imagem: ${comp.label || 'sem label'} (${comp.type})`;
         comp.imageDescription = fallbackDescription;
-        console.log(`   ⚠️ Imagem ${i+1}: Fallback - "${fallbackDescription}"`);
       }
       
       // Remover imageBase64 do JSON final (é apenas temporário para análise)
@@ -170,13 +169,11 @@ Responda APENAS a descrição detalhada, sem explicações adicionais.`;
       const description = result.choices?.[0]?.message?.content?.trim();
       
       if (description) {
-        console.log(`   🔍 [DEBUG] Descrição gerada com Vision API: "${description.substring(0, 50)}..."`);
         return description;
       }
     }
 
     // Fallback: usar apenas contexto textual
-    console.log(`   ⚠️ [DEBUG] Usando fallback textual (sem imagem base64)`);
     
     const prompt = `Você é um especialista em UX que descreve imagens em interfaces digitais.
 
@@ -237,7 +234,6 @@ Responda APENAS a descrição detalhada, sem explicações adicionais.`;
  */
 function limparArquivosTemporarios() {
   if (!CLEANUP_TEMP_FILES) {
-    console.log(`🔒 Limpeza de arquivos temporários desabilitada (CLEANUP_TEMP_FILES=false)`);
     return;
   }
   
@@ -253,9 +249,8 @@ function limparArquivosTemporarios() {
         const filePath = path.join(tempDir, file);
         try {
           fs.unlinkSync(filePath);
-          console.log(`🗑️ Arquivo temporário removido: temp/${file}`);
         } catch (e) {
-          console.log(`⚠️ Erro ao remover temp/${file}: ${e.message}`);
+          console.warn(`⚠️ Erro ao remover temp/${file}: ${e.message}`);
         }
       });
     }
@@ -267,9 +262,8 @@ function limparArquivosTemporarios() {
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
-          console.log(`🗑️ Arquivo de debug removido: debug_responses/${file}`);
         } catch (e) {
-          console.log(`⚠️ Erro ao remover debug_responses/${file}: ${e.message}`);
+          console.warn(`⚠️ Erro ao remover debug_responses/${file}: ${e.message}`);
         }
       }
     });
@@ -281,16 +275,13 @@ function limparArquivosTemporarios() {
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
-          console.log(`🗑️ Arquivo de debug removido: debug_layouts/${file}`);
         } catch (e) {
-          console.log(`⚠️ Erro ao remover debug_layouts/${file}: ${e.message}`);
+          console.warn(`⚠️ Erro ao remover debug_layouts/${file}: ${e.message}`);
         }
       }
     });
-    
-    console.log(`✅ Limpeza de arquivos temporários concluída`);
   } catch (e) {
-    console.log(`⚠️ Erro na limpeza de arquivos temporários: ${e.message}`);
+    console.warn(`⚠️ Erro na limpeza de arquivos temporários: ${e.message}`);
   }
 }
 
@@ -338,13 +329,6 @@ const ANALYZE_IMAGES = /^(1|true|on|yes)$/i.test(process.env.ANALYZE_IMAGES || "
  */
 const app = express();
 
-// Middleware de log para debug
-app.use((req, res, next) => {
-  console.log(`📥 [${new Date().toISOString()}] ${req.method} ${req.path}`);
-  console.log(`📥 [DEBUG] Headers:`, req.headers);
-  console.log(`📥 [DEBUG] Body:`, req.body);
-  next();
-});
 
 app.use(express.json({ limit: "10mb" }));
 app.use(cors());
@@ -406,12 +390,11 @@ async function fetchWithRetry(url, options = {}, retry = { retries: 4, baseDelay
 
 
 if (!OPENAI_API_KEY) {
-  console.error("[ERROR] Variável OPENAI_API_KEY não definida.");
+  logger.error("Variável OPENAI_API_KEY não definida.");
   process.exit(1);
 }
-      // 🚫 Se não houver ASSISTANT_ID, devolve só o JSON do Vision/Figma (sem heurística)
 if (!ASSISTANT_ID) {
-  console.warn("[WARN] ASSISTANT_ID não definido - passo Assistants será ignorado (Vision apenas).");
+  logger.warn("ASSISTANT_ID não definido - passo Assistants será ignorado (Vision apenas).");
 }
 
     // Cabeçalhos (uso básico só com a Project API Key)
@@ -440,14 +423,14 @@ if (!ASSISTANT_ID) {
 
 
   // LOG de roteamento (sem vazar a chave)
-    (function debugRouting() {
-      const mask = (s) => (s ? s.slice(0, 7) + "..." : "(vazio)");
-      console.log("🔧 ROUTING",
-        "| project:", OPENAI_PROJECT_ID || "(sem header)",
-        "| org:", OPENAI_ORG || "(sem header)",
-        "| key:", process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.slice(0, 10) + "..." : "(sem)"
-      );
-    })();
+  if (process.env.NODE_ENV === 'development') {
+    const mask = (s) => (s ? s.slice(0, 7) + "..." : "(vazio)");
+    logger.debug("ROUTING",
+      "| project:", OPENAI_PROJECT_ID || "(sem header)",
+      "| org:", OPENAI_ORG || "(sem header)",
+      "| key:", process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.slice(0, 10) + "..." : "(sem)"
+    );
+  }
 
   /** Logger de status compacto */
   function status(group, msg, ok = true, extra) {
@@ -457,13 +440,12 @@ if (!ASSISTANT_ID) {
 
   const logLine = (o) => fs.appendFileSync(path.join(__dirname, 'heuristica.ndjson'), JSON.stringify(o)+'\n');
 
-  /** Função para ler prompt do arquivo */
   function readPromptFile(filename) {
     try {
       const promptPath = path.join(__dirname, 'prompts', filename);
       return fs.readFileSync(promptPath, 'utf8').trim();
     } catch (e) {
-      console.warn(`[WARN] Não foi possível ler prompt de ${filename}:`, e.message);
+      logger.warn(`Não foi possível ler prompt de ${filename}:`, e.message);
       return null;
     }
   }
@@ -556,10 +538,9 @@ function buildHeurInstruction(metodo) {
   try {
     const promptPath = path.join(__dirname, 'prompts', 'heuristica.txt');
     const promptContent = fs.readFileSync(promptPath, 'utf8').trim();
-    console.log(`✅ Prompt carregado de prompts/heuristica.txt (${promptContent.length} chars)`);
     return promptContent.replaceAll("${metodo}", metodo);
   } catch (e) {
-    console.warn(`[WARN] Não foi possível ler prompts/heuristica.txt:`, e.message);
+    logger.warn(`Não foi possível ler prompts/heuristica.txt:`, e.message);
     // Fallback compactado baseado no heuristica.txt (formato JSON)
     return `Você é um especialista em UX com foco em análise heurística de interfaces digitais.
 
@@ -946,17 +927,9 @@ const normalizeImageUrl = (u) =>
 
     const defaultCanvas = (canvas && canvas.width && canvas.height) ? canvas : null;
 
-    // Log dos figmaSpecs sem truncagem (agora salvamos em arquivo separado)
-    if (figmaSpecs && Array.isArray(figmaSpecs)) {
-      console.log(`🔍 [DEBUG] figmaSpecs recebidos: ${figmaSpecs.length} itens`);
-      figmaSpecs.forEach((spec, index) => {
-        if (typeof spec === 'string') {
-          console.log(`🔍 [DEBUG] figmaSpec ${index}: ${spec.length} chars (string)`);
-        } else if (typeof spec === 'object') {
-          const specStr = JSON.stringify(spec);
-          console.log(`🔍 [DEBUG] figmaSpec ${index}: ${specStr.length} chars (objeto)`);
-        }
-      });
+    // Log dos figmaSpecs reduzido
+    if (figmaSpecs && Array.isArray(figmaSpecs) && figmaSpecs.length > 0) {
+      logger.debug(`figmaSpecs: ${figmaSpecs.length} itens`);
     }
 
     // Normalize arrays
@@ -1014,7 +987,7 @@ const normalizeImageUrl = (u) =>
             H = specObj.canvas.heightPx || null;
           }
         } catch (e) {
-          console.log(`[DEBUG] Erro ao fazer parse do spec: ${e.message}`);
+          console.warn(`[DEBUG] Erro ao fazer parse do spec: ${e.message}`);
         }
       }
       if ((!W || !H) && defaultCanvas) {
@@ -1040,10 +1013,10 @@ const normalizeImageUrl = (u) =>
         if (typeof spec === 'string') {
           try {
             parsed = JSON.parse(spec);
-          } catch (e) {
-            console.log(`[DEBUG] Erro ao fazer parse do spec: ${e.message}`);
-            parsed = null;
-          }
+        } catch (e) {
+          console.warn(`[DEBUG] Erro ao fazer parse do spec: ${e.message}`);
+          parsed = null;
+        }
         } else {
           parsed = spec;
         }
@@ -1085,13 +1058,9 @@ const normalizeImageUrl = (u) =>
         }, { retries: 4, baseDelay: 600, maxDelay: 6000 });
 
         const rid = visionResponse.headers.get("x-request-id");
-        console.log("🛰️ Vision status:", visionResponse.status, visionResponse.statusText, "| reqId:", rid, "|", (Date.now() - t0) + "ms");
-        const visionJson = await visionResponse.json().catch(() => ({}));
         if (!visionResponse.ok) {
           console.error("[ERROR] Vision body:", visionJson);
         }
-        console.log("🆔 chatcmpl.id:", visionJson?.id || "(sem id)");
-        console.log("[DASHBOARD] Cole em Dashboard -> Logs -> Completions -> Enter id:", visionJson?.id || "(sem id)");
 
         const usageV = visionJson?.usage || {};
         status(group, "Vision: tokens", true, `prompt:${usageV.prompt_tokens ?? "-"} completion:${usageV.completion_tokens ?? "-"} total:${usageV.total_tokens ?? "-"}`);
@@ -1154,17 +1123,8 @@ const normalizeImageUrl = (u) =>
         }
 
         // Análise de imagens no figmaSpec
-        console.log(`🔍 [DEBUG] Condições para análise de imagens:`);
-        console.log(`🔍 [DEBUG] - parsed existe: ${!!parsed}`);
-        console.log(`🔍 [DEBUG] - parsed é objeto: ${parsed && typeof parsed === 'object'}`);
-        console.log(`🔍 [DEBUG] - hasSpec: ${hasSpec}`);
-        console.log(`🔍 [DEBUG] - Condição completa: ${parsed && typeof parsed === 'object' && hasSpec}`);
-        
         if (parsed && typeof parsed === 'object' && hasSpec) {
-          console.log(`🔍 [DEBUG] Chamando analyzeImagesInFigmaSpec...`);
           parsed = await analyzeImagesInFigmaSpec(parsed, HEADERS_VISION, modeloVision);
-        } else {
-          console.log(`🔍 [DEBUG] Pulando análise de imagens - condição não atendida`);
         }
       }
 
@@ -1182,7 +1142,6 @@ const normalizeImageUrl = (u) =>
         );
         status(group, "Persistido", true, `debug_layouts/${fileName}`);
 
-      // ===== Responses (GPT‑5) opcional =====
       // Salvar figmaSpec em arquivo temporário para consulta da IA
       let figmaSpecFile = null;
       if (hasSpec && spec) {
@@ -1191,9 +1150,8 @@ const normalizeImageUrl = (u) =>
           fs.mkdirSync(tempDir, { recursive: true });
           figmaSpecFile = path.join(tempDir, `figma_spec_item${i+1}.json`);
           fs.writeFileSync(figmaSpecFile, JSON.stringify(spec, null, 2), 'utf8');
-          console.log(`   📁 figmaSpec salvo em: temp/figma_spec_item${i+1}.json`);
         } catch (e) {
-          console.log(`   ⚠️ Erro ao salvar figmaSpec: ${e.message}`);
+          console.warn(`   ⚠️ Erro ao salvar figmaSpec: ${e.message}`);
         }
       }
       
@@ -1226,8 +1184,6 @@ const normalizeImageUrl = (u) =>
         // Verificar se é modelo O3 e reduzir prompt se necessário
         const isO3Model = /^o3/i.test(MODELO_TEXTO);
         if (isO3Model && instr.length > 8000) {
-          console.log(`⚠️ [${group}] Prompt muito grande para O3 (${instr.length} chars). Reduzindo...`);
-          
           // Versão reduzida do prompt para O3
           instr = `Você é um especialista em análise heurística de interfaces digitais.
 
@@ -1252,8 +1208,6 @@ Responda APENAS em formato JSON válido:
 Método: ${metodo}.
 Priorize fatos geométricos (dx/dy, contraste, padding, gaps).
 Para múltiplos achados, adicione mais objetos no array "achados".`;
-          
-          console.log(`✅ [${group}] Prompt reduzido para O3: ${instr.length} caracteres`);
         }
 
         const instr2 = `${instr}
@@ -1288,20 +1242,21 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         const prompt = [instr2.replaceAll("${metodo}", metodo), "", "DADOS:", mensagemMinima].join("\n");
 
         // Salvar prompt do figmaSpec para debug
-        try {
-          const debugDir = path.join(__dirname, "debug_responses");
-          fs.mkdirSync(debugDir, { recursive: true });
-          const promptFile = path.join(debugDir, `prompt_item${i+1}.txt`);
-          fs.writeFileSync(promptFile, prompt, 'utf8');
-          console.log(`   💾 Prompt salvo em: debug_responses/prompt_item${i+1}.txt`);
-        } catch (e) {
-          console.log(`   ⚠️ Erro ao salvar prompt: ${e.message}`);
+        if (process.env.NODE_ENV === 'development') {
+          try {
+            const debugDir = path.join(__dirname, "debug_responses");
+            fs.mkdirSync(debugDir, { recursive: true });
+            const promptFile = path.join(debugDir, `prompt_item${i+1}.txt`);
+            fs.writeFileSync(promptFile, prompt, 'utf8');
+          } catch (e) {
+            console.warn(`   ⚠️ Erro ao salvar prompt: ${e.message}`);
+          }
         }
 
-        // Log do prompt
-        const estimatedTokens = Math.ceil(prompt.length / 4); // Estimativa: ~4 chars por token
+        // Log do prompt reduzido
+        const estimatedTokens = Math.ceil(prompt.length / 4);
         const promptType = figmaSpecFile ? "prompt + arquivo" : "prompt completo";
-        console.log(`   📝 Prompt: ${prompt.length.toLocaleString()} chars (~${estimatedTokens.toLocaleString()} tokens), JSON: ${prompt.includes('JSON') ? '✅' : '❌'}, Tipo: ${promptType}`);
+        console.log(`   📝 Prompt: ${prompt.length.toLocaleString()} chars (~${estimatedTokens.toLocaleString()} tokens), Tipo: ${promptType}`);
         
 
         const skipTemp = MODELOS_SEM_TEMPERATURA.some((rx) => rx.test(String(MODELO_TEXTO || "")));
@@ -1309,8 +1264,7 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         // Ajustar tokens para modelos O3 (limite TPM menor)
         let maxTokens = MAXTOK_TEXTO;
         if (isO3Model) {
-          maxTokens = Math.min(MAXTOK_TEXTO, 4000); // Limite muito baixo para O3 (evita TPM)
-          console.log(`🔧 [${group}] Tokens ajustados para O3: ${maxTokens}`);
+          maxTokens = Math.min(MAXTOK_TEXTO, 4000);
         }
 
         const body = {
@@ -1358,17 +1312,15 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
             const estimatedCompletionTokens = totalTokens - estimatedPromptTokens;
             displayPromptTokens = estimatedPromptTokens;
             displayCompletionTokens = Math.max(0, estimatedCompletionTokens);
-            console.log(`   📊 Tokens: entrada=${displayPromptTokens.toLocaleString()} (estimado), saída=${displayCompletionTokens.toLocaleString()} (estimado), total=${totalTokens.toLocaleString()}`);
+            console.log(`   📊 Tokens: entrada=${displayPromptTokens.toLocaleString()}, saída=${displayCompletionTokens.toLocaleString()}, total=${totalTokens.toLocaleString()}`);
           } else {
             console.log(`   📊 Tokens: entrada=${displayPromptTokens.toLocaleString()}, saída=${displayCompletionTokens.toLocaleString()}, total=${totalTokens.toLocaleString()}`);
           }
-          
-          console.log(`   📈 Eficiência: ${displayPromptTokens > 0 ? ((displayCompletionTokens/displayPromptTokens)*100).toFixed(1) : 0}% saída/entrada`);
         }
         
         // Log do RAG se usado
         if (ragUsed) {
-          console.log(`   🔍 RAG: ${ragStepTypes.join(', ')} (${rag_ms}ms)`);
+          console.log(`   🔍 RAG: ${ragStepTypes.join(', ')}`);
         }
         
         
@@ -1418,8 +1370,6 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
             const parsed = JSON.parse(jsonText);
             
             if (parsed.achados && Array.isArray(parsed.achados)) {
-              console.log(`   ✅ JSON válido com ${parsed.achados.length} achados`);
-              
               // Converter JSON para formato texto numerado
               const achadosTexto = [];
               parsed.achados.forEach((achado, index) => {
@@ -1438,15 +1388,13 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
               });
               
               out = achadosTexto.join('\n[[[FIM_HEURISTICA]]]\n');
-              console.log(`   🔧 Convertido JSON para formato texto`);
               
             } else {
-              console.log(`⚠️ [${group}] JSON inválido ou sem campo 'achados'`);
+              console.warn(`⚠️ [${group}] JSON inválido ou sem campo 'achados'`);
             }
             
           } catch (e) {
-            console.log(`⚠️ [${group}] Erro ao processar JSON: ${e.message}`);
-            console.log(`📝 Resposta original mantida (formato texto)`);
+            console.warn(`⚠️ [${group}] Erro ao processar JSON: ${e.message}`);
           }
         }
         status(group, "Responses: ok", !!out, out ? "texto" : "vazio");
@@ -1497,68 +1445,24 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         const promptCompleto = `${heurInstruction}\n\nJSON do layout:\n${visionPretty || raw}`;
         
         try {
-          console.log("🔍 [DEBUG] Iniciando análise heurística com prompt direto");
-          console.log("🔍 [DEBUG] Método:", metodo);
-          console.log("🔍 [DEBUG] Tamanho do prompt:", promptCompleto.length);
-          
-          // Configurar parâmetros baseado no modelo
-          const isGPT5Model = /^gpt-5/i.test(MODELO_TEXTO);
-          const requestBody = {
-            model: MODELO_TEXTO,
-            messages: [{ role: "user", content: promptCompleto }]
-          };
-          
-          // GPT-5 usa max_completion_tokens e não suporta temperature personalizada
-          if (isGPT5Model) {
-            requestBody.max_completion_tokens = parseInt(process.env.MAX_TOKENS_TEXTO || "8192");
-            // GPT-5 só aceita temperature padrão (1), não aceita valores personalizados
-          } else {
-            requestBody.max_tokens = parseInt(process.env.MAX_TOKENS_TEXTO || "8192");
-            requestBody.temperature = parseFloat(process.env.TEMP_TEXTO || "0.2");
-          }
-          
           const responseHeur = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: HEADERS_VISION,
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({
+              model: "gpt-4o",
+              messages: [{ role: "user", content: promptCompleto }],
+              temperature: parseFloat(process.env.TEMP_TEXTO || "0.2"),
+              max_tokens: parseInt(process.env.MAX_TOKENS_TEXTO || "8192")
+            }),
           });
           
-          console.log("🔍 [DEBUG] Status da resposta OpenAI:", responseHeur.status);
           const heurData = await responseHeur.json();
-          console.log("🔍 [DEBUG] Resposta OpenAI:", heurData);
-          
           const heurText = heurData.choices?.[0]?.message?.content || "[WARN] Resposta vazia da análise heurística.";
-          console.log("🔍 [DEBUG] Texto da análise heurística:", heurText.substring(0, 500) + "...");
           
-          // Converter JSON para formato de string esperado pelo frontend
-          let formattedResponse = heurText;
-          try {
-            // Se a resposta é JSON, converter para formato de string
-            if (heurText.trim().startsWith('{') && heurText.trim().endsWith('}')) {
-              const jsonData = JSON.parse(heurText);
-              if (jsonData.achados && Array.isArray(jsonData.achados)) {
-                // Converter cada achado para formato esperado pelo parser do frontend
-                formattedResponse = jsonData.achados.map((achado) => {
-                  return `1 - ${achado.constatacao_hipotese || 'Constatação'}
-2 - ${achado.titulo_card || 'Sem título'}
-3 - ${achado.heuristica_metodo || ''}
-4 - ${achado.descricao || ''}
-5 - ${achado.sugestao_melhoria || ''}
-6 - ${achado.evidencia_metricas || ''}
-7 - ${achado.severidade || 'médio'}
-8 - ${Array.isArray(achado.referencias) ? achado.referencias.join(', ') : achado.referencias || ''}`;
-                }).join('\n\n[[[FIM_HEURISTICA]]]\n\n');
-              }
-            }
-          } catch (e) {
-            console.log("🔍 [DEBUG] Resposta não é JSON válido, usando como texto:", e.message);
-          }
-          
-          respostasIndividuais.push(formattedResponse);
+          respostasIndividuais.push(heurText);
           status(group, "Análise heurística: concluída (prompt direto)", true);
         } catch (e) {
           console.error("[ERROR] Erro na análise heurística:", e.message);
-          console.error("[ERROR] Stack trace:", e.stack);
           respostasIndividuais.push("[WARN] Erro na análise heurística. [[[FIM_HEURISTICA]]]");
           status(group, "Análise heurística: erro", false);
         }
@@ -1595,7 +1499,6 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
         body: JSON.stringify({ assistant_id: ASSISTANT_ID }),
       });
       console.log("[RUN] run.id:", run?.id || "(sem id)");
-      console.log("[DASHBOARD] Cole em Dashboard -> Logs -> Assistants -> Enter id:", run?.id || "(sem id)");
 
       // Waiting Espera até a run terminar (pollRun)
       const finished = await pollRun(thread.id, run.id);
@@ -1634,11 +1537,9 @@ const inferencia_sem_rag_ms = Math.max(0, inferencia_total_ms - rag_ms); // Desc
     
     // Delay entre requisições para evitar limite TPM do O3
     if (N > 1 && MODELO_TEXTO && /o3/i.test(MODELO_TEXTO)) {
-      console.log(`⏳ Aguardando 10s para evitar limite TPM do O3...`);
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
     
-    logLine({ ts:new Date().toISOString(), batch_id, screens_total: N, duration_ms: performance.now()-job0 });
     console.log(`\n📊 Resumo: ${sec(performance.now()-job0)}s total (${N} telas processadas)`);
     console.log(`📤 Enviando ${respostasIndividuais.length} respostas para o frontend`);
     
@@ -1647,7 +1548,7 @@ const inferencia_sem_rag_ms = Math.max(0, inferencia_total_ms - rag_ms); // Desc
     
     return res.json({ respostas: respostasIndividuais });
   } catch (err) {
-    console.error("[ERROR] Erro geral:", err?.message || err);
+    logger.error("Erro geral:", err?.message || err);
     return res.status(500).json({ error: "Erro inesperado na análise.", details: err?.message || String(err) });
   }
 });
@@ -1700,54 +1601,54 @@ const PORT = process.env.PORT || 3000;
 const ndjsonPath = path.join(__dirname, 'heuristica.ndjson');
 
 app.listen(PORT, () => {
-console.log(`🚀 Servidor iniciado na porta ${PORT}`);
-console.log(`📝 Logs salvos em: ${ndjsonPath}`);
+  logger.info(`Servidor iniciado na porta ${PORT}`);
+  logger.info(`Logs salvos em: ${ndjsonPath}`);
   
   // Log das configurações do modelo
-  console.log(`\n🔧 Configurações:`);
-  console.log(`   Vision: ${modeloVision} (temp: ${tempVision}, tokens: ${maxTokensVision.toLocaleString()})`);
-  console.log(`   Texto: ${MODELO_TEXTO}`);
+  logger.info(`\nConfigurações:`);
+  logger.info(`   Vision: ${modeloVision} (temp: ${tempVision}, tokens: ${maxTokensVision.toLocaleString()})`);
+  logger.info(`   Texto: ${MODELO_TEXTO}`);
   
   // Mostrar temperatura ou reasoning dependendo do modelo
   if (MODELOS_SEM_TEMPERATURA.some(pattern => pattern.test(MODELO_TEXTO))) {
     if (/^o3/i.test(MODELO_TEXTO)) {
       const reasoning = process.env.REASONING_EFFORT || 'medium';
-      console.log(`   Reasoning: ${reasoning}`);
+      logger.info(`   Reasoning: ${reasoning}`);
     } else {
-      console.log(`   Temperatura: não aplicável (modelo ${MODELO_TEXTO})`);
+      logger.info(`   Temperatura: não aplicável (modelo ${MODELO_TEXTO})`);
     }
   } else {
     const tempTexto = Number(process.env.TEMP_TEXTO || 0.2);
-    console.log(`   Temperatura: ${tempTexto}`);
+    logger.info(`   Temperatura: ${tempTexto}`);
   }
   
   const maxTokTexto = Number(process.env.MAXTOK_TEXTO || 20000);
-  console.log(`   Tokens: ${maxTokTexto.toLocaleString()}`);
+  logger.info(`   Tokens: ${maxTokTexto.toLocaleString()}`);
   
   const useRagStatus = USE_RAG_DEFAULT ? 'ON' : 'OFF';
   const vectorStoreId = VECTOR_STORE_ID_ENV;
-  console.log(`   RAG: ${useRagStatus}${useRagStatus === 'ON' && vectorStoreId ? ` (${vectorStoreId})` : ''}`);
+  logger.info(`   RAG: ${useRagStatus}${useRagStatus === 'ON' && vectorStoreId ? ` (${vectorStoreId})` : ''}`);
   
   const cleanupStatus = CLEANUP_TEMP_FILES ? 'ON' : 'OFF';
-  console.log(`   Limpeza automática: ${cleanupStatus}`);
+  logger.info(`   Limpeza automática: ${cleanupStatus}`);
   
   const analyzeImagesStatus = ANALYZE_IMAGES ? 'ON' : 'OFF';
-  console.log(`   Análise de imagens: ${analyzeImagesStatus}`);
-  console.log('');
+  logger.info(`   Análise de imagens: ${analyzeImagesStatus}`);
+  logger.info('');
 }).on('error', (err) => {
-  console.error('❌ Erro ao iniciar servidor:', err.message);
+  logger.error('Erro ao iniciar servidor:', err.message);
   process.exit(1);
 });
 
 // Capturar erros não tratados
 process.on('uncaughtException', (err) => {
-  console.error('❌ Erro não tratado:', err.message);
-  console.error('Stack:', err.stack);
+  logger.error('Erro não tratado:', err.message);
+  logger.error('Stack:', err.stack);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Promise rejeitada:', reason);
+  logger.error('Promise rejeitada:', reason);
   process.exit(1);
 });
 
@@ -1764,7 +1665,7 @@ app.get("/ping-openai", async (_req, res) => {
       method: "POST",
       headers: HEADERS_VISION,
       body: JSON.stringify({
-        model: modeloVision,
+        model: "gpt-4.1-mini",
         messages: [{ role: "user", content: "ping" }],
       }),
     });

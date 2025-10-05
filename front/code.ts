@@ -9,7 +9,6 @@
 // ÍNDICE RÁPIDO: CONFIG • UI • EXPORT/UPLOAD • PARSER • SEVERIDADE • CARD • POSICIONAMENTO • HELPERS
 
 // code.ts — Plugin Figma sem optional chaining e com tipagem completa
-console.log("🔥 [DEBUG] Plugin Agent.I carregado - versão atualizada!");
 
 // Exibe a UI do plugin (janela direita) com largura/altura definidas
 figma.showUI(__html__, { width: 380, height: 385 });
@@ -717,7 +716,6 @@ function tweenOpacitySafe(node: SceneNode, from: number, to: number, duration = 
 
 // [UI] Mensagens vindas da interface do plugin (botões/inputs). Inicia fluxo de análise.
 figma.ui.onmessage = async (msg: any) => {
-  console.log("🔥 [DEBUG] Mensagem recebida:", msg && msg.type, msg);
   
   if (msg.type === "focusNode" && msg.nodeId) {
     const n = figma.getNodeById(msg.nodeId);
@@ -807,12 +805,8 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
   
   // Benchmark Multi-IA
   if (msg && msg.type === "benchmark-multi-ai") {
-    console.log("🔥 [DEBUG] Mensagem benchmark-multi-ai recebida:", msg);
-    
     const categoria: string = msg.categoria || "free";
     const testType: string = msg.testType || "layout-analysis";
-    
-    console.log("🔥 [DEBUG] Categoria:", categoria, "TestType:", testType);
     
     const selection = figma.currentPage.selection;
     if (!selection.length) {
@@ -835,13 +829,6 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
       }
 
       // Chamada para benchmark multi-IA
-      console.log("🔥 [DEBUG] Enviando requisição para /benchmark-multi-ai");
-      console.log("🔥 [DEBUG] Dados:", {
-        figmaSpecs: figmaSpec ? [figmaSpec] : [],
-        categoria: categoria,
-        testType: testType
-      });
-      
       const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -852,9 +839,7 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
         })
       });
 
-      console.log("🔥 [DEBUG] Resposta recebida:", response.status, response.statusText);
       const data = await response.json();
-      console.log("🔥 [DEBUG] Dados da resposta:", data);
 
       if (data.success) {
         figma.ui.postMessage({ 
@@ -971,17 +956,45 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
     });
 
     const data = await response.json();
-    console.log("🔍 [DEBUG] Resposta da API:", data);
-    console.log("🔍 [DEBUG] Status da resposta:", response.status);
-    console.log("🔍 [DEBUG] Array respostas:", data.respostas);
-    console.log("🔍 [DEBUG] Primeira resposta:", data.respostas && data.respostas[0]);
 
     let blocos: string[] = [];
     if (data && Array.isArray(data.respostas)) {
-      blocos = data.respostas;
-      console.log("🔍 [DEBUG] Blocos extraídos:", blocos.length);
+      // Verificar se é JSON formatado
+      const primeiraResposta = data.respostas[0];
+      if (typeof primeiraResposta === 'string' && primeiraResposta.includes('```json')) {
+        try {
+          // Extrair JSON do markdown
+          const jsonMatch = primeiraResposta.match(/```json\n([\s\S]*?)\n```/);
+          if (jsonMatch) {
+            const jsonData = JSON.parse(jsonMatch[1]);
+            
+            if (jsonData.achados && Array.isArray(jsonData.achados)) {
+              // Converter cada achado para formato esperado pelo parser
+              blocos = jsonData.achados.map((achado: any) => {
+                return `1 - ${achado.constatacao_hipotese || 'Constatação'}
+2 - ${achado.titulo_card || 'Sem título'}
+3 - ${achado.heuristica_metodo || ''}
+4 - ${achado.descricao || ''}
+5 - ${achado.sugestao_melhoria || ''}
+6 - ${achado.justificativa || ''}
+7 - ${achado.severidade || 'médio'}
+8 - ${Array.isArray(achado.referencias) ? achado.referencias.join(', ') : achado.referencias || ''}`;
+              });
+            } else {
+              blocos = data.respostas;
+            }
+          } else {
+            blocos = data.respostas;
+          }
+        } catch (e) {
+          console.error("❌ [DEBUG] Erro ao processar JSON:", e);
+          blocos = data.respostas;
+        }
+      } else {
+        blocos = data.respostas;
+      }
     } else {
-      console.log("❌ [DEBUG] Erro: respostas não é um array ou está vazio");
+      console.error("❌ [DEBUG] Erro: respostas não é um array ou está vazio");
     }
 
     // 🔧 anti-split: une "Sem título" + próximo que começa com "Hipótese Título do Card:"
@@ -1010,52 +1023,55 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
     }
 
     const layoutsPayload: any[] = [];
+    const node = orderedSelection[0]; // Usar o primeiro frame selecionado para todos os cards
+    const OFFSET_X = 80; // declara fora do loop
+    let currentY: number = node.y; // Posição Y base para o primeiro card
 
-    for (let i = 0; i < blocos.length && i < orderedSelection.length; i++) {
+    // Processar todos os blocos como partes individuais
+    const todasPartes: string[] = [];
+    
+    for (let i = 0; i < blocos.length; i++) {
       const blocoOriginal: string = blocos[i] || "";
-      const node = orderedSelection[i];
-      const cardsPayload: any[] = [];
       
-      try {
-      
-// [PARSER] Suporta múltiplas heurísticas no mesmo bloco, separadas por [[[FIM_HEURISTICA]]].
       // Suporte a múltiplas heurísticas no mesmo bloco, separadas por [[[FIM_HEURISTICA]]]
       const partes: string[] = blocoOriginal.split("[[[FIM_HEURISTICA]]]").map((p: string) => p.trim()).filter((p: string) => p.length > 0);
       // Fallback para marcador antigo [[FIM_HEURISTICA]]
       if (partes.length === 0 && blocoOriginal.includes("[[FIM_HEURISTICA]]")) {
         partes.push(blocoOriginal.split("[[FIM_HEURISTICA]]")[0].trim());
       }
+      
+      todasPartes.push(...partes);
+    }
 
-	  const OFFSET_X = 80; // declara fora do loop
-// [POSICIONAMENTO] Y base do primeiro card = top do frame selecionado; OFFSET_X controla a distância lateral.
-      let currentY: number = node.y;
-      // === PRIORIZAÇÃO: problemas primeiro, positivos por último ===
-      const MAX_POSITIVE_CARDS = 1; // 0 = ocultar positivos; 1 = mostrar apenas 1; ajuste como quiser.
+    // === PRIORIZAÇÃO: problemas primeiro, positivos por último ===
+    const MAX_POSITIVE_CARDS = 1; // 0 = ocultar positivos; 1 = mostrar apenas 1; ajuste como quiser.
 
-      function extrairSeveridade(p: string): string {
-        const m = p.match(/\n?\s*7\s*[-–—]?\s*(?:Severidade\s*:)?\s*([^\n]+)/i);
-        return m ? m[1].trim().toLowerCase() : "";
-      }
-      function rankSeveridade(s: string): number {
-        const t = (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
-        if (/alto|alta|critica|crítica|critico|crítico/.test(t)) return 0; // mais crítico primeiro
-        if (/medio|médio|moderad[oa]|media|média/.test(t)) return 1;
-        if (/baixo|baixa|leve/.test(t)) return 2;
-        if (/positiv/.test(t)) return 3; // positivos por último
-        return 2; // default ~ baixo
-      }
+    function extrairSeveridade(p: string): string {
+      const m = p.match(/\n?\s*7\s*[-–—]?\s*(?:Severidade\s*:)?\s*([^\n]+)/i);
+      return m ? m[1].trim().toLowerCase() : "";
+    }
+    function rankSeveridade(s: string): number {
+      const t = (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+      if (/alto|alta|critica|crítica|critico|crítico/.test(t)) return 0; // mais crítico primeiro
+      if (/medio|médio|moderad[oa]|media|média/.test(t)) return 1;
+      if (/baixo|baixa|leve/.test(t)) return 2;
+      if (/positiv/.test(t)) return 3; // positivos por último
+      return 2; // default ~ baixo
+    }
 
-      const partesNegativas = partes
-        .filter(p => !/positiv/i.test(extrairSeveridade(p)))
-        .sort((a,b) => rankSeveridade(extrairSeveridade(a)) - rankSeveridade(extrairSeveridade(b)));
+    const partesNegativas = todasPartes
+      .filter(p => !/positiv/i.test(extrairSeveridade(p)))
+      .sort((a,b) => rankSeveridade(extrairSeveridade(a)) - rankSeveridade(extrairSeveridade(b)));
 
-      const partesPositivas = partes
-        .filter(p => /positiv/i.test(extrairSeveridade(p)))
-        .slice(0, MAX_POSITIVE_CARDS);
+    const partesPositivas = todasPartes
+      .filter(p => /positiv/i.test(extrairSeveridade(p)))
+      .slice(0, MAX_POSITIVE_CARDS);
 
-      const partesOrdenadas = [...partesNegativas, ...partesPositivas];
+    const partesOrdenadas = [...partesNegativas, ...partesPositivas];
 
-
+    const cardsPayload: any[] = [];
+    
+    try {
       for (const parte of partesOrdenadas) {
         // Quebra o bloco em linhas e remove espaços
 let parteSan: string = parte
@@ -1405,20 +1421,19 @@ if (secRef) contentCol.appendChild(secRef as SceneNode);
       cardsPayload.push({ analise: parte, severidade: sevMeta.label, sevKey, severidadeRaw, nodeId: node.id });
 
   currentY += card.height + 24;
-      } // fim do for (const parte of partes)
+      } // fim do for (const parte of partesOrdenadas)
 
       //barraLateral.resize(8, contentCol.height);
 // Nome do layout sem optional chaining
 // Nome do layout formatado para o cabeçalho do container
-const nodeName = (node && (node as any).name) ? (node as any).name : (`Layout ${i+1}`);
+const nodeName = (node && (node as any).name) ? (node as any).name : (`Layout`);
 // Empilha o resumo desta tela para enviar à UI
 layoutsPayload.push({ nome: `[AI] ${nodeName}`, cards: cardsPayload });
-      } catch (error) {
-        console.error(`[DEBUG] Erro ao processar item ${i+1}:`, error);
-        // Continua para o próximo item mesmo se houver erro
-        layoutsPayload.push({ nome: `[AI] Layout ${i+1} (Erro)`, cards: [] });
-      }
-}
+    } catch (error) {
+      console.error(`[DEBUG] Erro ao processar análise:`, error);
+      // Continua mesmo se houver erro
+      layoutsPayload.push({ nome: `[AI] Layout (Erro)`, cards: [] });
+    }
 
 // Envia resultados para a UI
 figma.ui.postMessage({ carregando: false, analises: layoutsPayload });
