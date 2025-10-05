@@ -15,8 +15,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-    env_file:
-      - .env.example
     volumes:
       # Volume para logs persistentes
       - ./logs:/app/logs
