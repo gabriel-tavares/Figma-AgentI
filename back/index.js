@@ -1501,15 +1501,25 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
           console.log("🔍 [DEBUG] Método:", metodo);
           console.log("🔍 [DEBUG] Tamanho do prompt:", promptCompleto.length);
           
+          // Configurar parâmetros baseado no modelo
+          const isGPT5Model = /^gpt-5/i.test(MODELO_TEXTO);
+          const requestBody: any = {
+            model: MODELO_TEXTO,
+            messages: [{ role: "user", content: promptCompleto }],
+            temperature: parseFloat(process.env.TEMP_TEXTO || "0.2")
+          };
+          
+          // GPT-5 usa max_completion_tokens, outros modelos usam max_tokens
+          if (isGPT5Model) {
+            requestBody.max_completion_tokens = parseInt(process.env.MAX_TOKENS_TEXTO || "8192");
+          } else {
+            requestBody.max_tokens = parseInt(process.env.MAX_TOKENS_TEXTO || "8192");
+          }
+          
           const responseHeur = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: HEADERS_VISION,
-            body: JSON.stringify({
-              model: MODELO_TEXTO,
-              messages: [{ role: "user", content: promptCompleto }],
-              temperature: parseFloat(process.env.TEMP_TEXTO || "0.2"),
-              max_tokens: parseInt(process.env.MAX_TOKENS_TEXTO || "8192")
-            }),
+            body: JSON.stringify(requestBody),
           });
           
           console.log("🔍 [DEBUG] Status da resposta OpenAI:", responseHeur.status);
