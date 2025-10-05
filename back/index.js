@@ -333,32 +333,59 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
   const fullPrompt = [instruction, "", "DADOS:", mensagem].join("\n");
   
   try {
-    const body = {
-      model: MODELO_AGENTE_A,
-      input: fullPrompt,
-      max_output_tokens: 20000,
-      ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
-    };
+    // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
+    const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_A);
     
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST", 
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
+    if (isResponsesModel) {
+      // Usar Responses API para GPT-5, O3, etc.
+      const body = {
+        model: MODELO_AGENTE_A,
+        input: fullPrompt,
+        max_output_tokens: 20000,
+        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+      };
+      
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST", 
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await response.json();
+      const content = result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
+      
+      if (content) {
+        const cleanContent = stripCodeFence(content);
+        return JSON.parse(cleanContent);
+      }
+    } else {
+      // Usar Chat Completions para GPT-4, etc.
+      const body = {
         model: MODELO_AGENTE_A,
         messages: [{ role: "user", content: fullPrompt }],
-        max_tokens: 20000
-      })
-    });
-    
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content;
-    
-    if (content) {
-      const cleanContent = stripCodeFence(content);
-      return JSON.parse(cleanContent);
+        max_tokens: 20000,
+        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+      };
+      
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST", 
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await response.json();
+      const content = result.choices?.[0]?.message?.content;
+      
+      if (content) {
+        const cleanContent = stripCodeFence(content);
+        return JSON.parse(cleanContent);
+      }
     }
     
     return null;
@@ -376,34 +403,71 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
   const instruction = prompt.replaceAll("${metodo}", metodo);
   
   try {
-    const body = {
-      model: MODELO_AGENTE_B,
-      messages: [{
-        role: "user", 
-        content: [
-          { type: "text", text: instruction },
-          { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
-        ]
-      }],
-      max_tokens: 4096,
-      ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
-    };
+    // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
+    const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_B);
     
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content;
-    
-    if (content) {
-      const cleanContent = stripCodeFence(content);
-      return JSON.parse(cleanContent);
+    if (isResponsesModel) {
+      // Para Responses API, não suporta imagens diretamente, usar Chat Completions
+      const body = {
+        model: "gpt-4o-mini", // Fallback para modelo com vision
+        messages: [{
+          role: "user", 
+          content: [
+            { type: "text", text: instruction },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
+          ]
+        }],
+        max_tokens: 4096,
+        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+      };
+      
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await response.json();
+      const content = result.choices?.[0]?.message?.content;
+      
+      if (content) {
+        const cleanContent = stripCodeFence(content);
+        return JSON.parse(cleanContent);
+      }
+    } else {
+      // Usar Chat Completions para GPT-4 com vision
+      const body = {
+        model: MODELO_AGENTE_B,
+        messages: [{
+          role: "user", 
+          content: [
+            { type: "text", text: instruction },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
+          ]
+        }],
+        max_tokens: 4096,
+        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+      };
+      
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await response.json();
+      const content = result.choices?.[0]?.message?.content;
+      
+      if (content) {
+        const cleanContent = stripCodeFence(content);
+        return JSON.parse(cleanContent);
+      }
     }
     
     return null;
@@ -427,28 +491,59 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
   const fullPrompt = [prompt, "", mensagem].join("\n");
   
   try {
-    const body = {
-      model: MODELO_AGENTE_C,
-      messages: [{ role: "user", content: fullPrompt }],
-      max_tokens: 8000,
-      ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
-    };
+    // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
+    const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_C);
     
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content;
-    
-    if (content) {
-      const cleanContent = stripCodeFence(content);
-      return JSON.parse(cleanContent);
+    if (isResponsesModel) {
+      // Usar Responses API para GPT-5, O3, etc.
+      const body = {
+        model: MODELO_AGENTE_C,
+        input: fullPrompt,
+        max_output_tokens: 8000,
+        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+      };
+      
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await response.json();
+      const content = result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
+      
+      if (content) {
+        const cleanContent = stripCodeFence(content);
+        return JSON.parse(cleanContent);
+      }
+    } else {
+      // Usar Chat Completions para GPT-4, etc.
+      const body = {
+        model: MODELO_AGENTE_C,
+        messages: [{ role: "user", content: fullPrompt }],
+        max_tokens: 8000,
+        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+      };
+      
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await response.json();
+      const content = result.choices?.[0]?.message?.content;
+      
+      if (content) {
+        const cleanContent = stripCodeFence(content);
+        return JSON.parse(cleanContent);
+      }
     }
     
     return null;
