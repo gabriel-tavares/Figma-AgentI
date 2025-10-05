@@ -22,6 +22,12 @@ Avaliar layouts e interfaces fornecidas como **JSON de layout** (FigmaSpec) ou c
   - `meta.contextEcho` como **contexto de tela/fluxo**.
   - `meta.contextUser` como **pista**, nunca como evidência.
 - Trate sempre o conteúdo como **interface estática** (não interativa).
+- **CONTEXTO DE ONBOARDING**: Onboarding pode ter diferentes propósitos:
+  - **Funcionalidades**: Mostrar como usar o app
+  - **Produto/Serviço**: Apresentar o que o app oferece (ex: café, comida, etc.)
+  - **Marca**: Comunicar identidade e valores
+  - **Benefícios**: Destacar vantagens para o usuário
+  - **Emoção**: Criar conexão emocional com o produto
 
 ---
 
@@ -80,10 +86,15 @@ Priorize **dados do JSON**. Quando citar números, seja objetivo (arredonde para
    - Confronte `spacing.parent.layoutMode` com as distâncias reais; itens “absolutos” devem ser sinalizados.
 8) **Imagens e Comunicação Visual**
    - Use `imageDescription` para avaliar:
-     - **Adequação ao contexto**: A imagem comunica o propósito esperado?
+     - **Adequação ao contexto**: A imagem comunica o propósito esperado? CONSIDERE o contexto do app (ex: app de café pode usar imagens de café para comunicar o produto/serviço, não necessariamente funcionalidades)
      - **Hierarquia visual**: A imagem compete ou complementa o texto?
      - **Clareza**: A imagem é compreensível e relevante?
      - **Consistência**: Imagens seguem padrão visual similar?
+   - **CONTEXTO É FUNDAMENTAL**: Antes de julgar inadequação, considere:
+     - Tipo de app (e-commerce, delivery, social, etc.)
+     - Propósito da tela (onboarding pode ser sobre produto, não só funcionalidades)
+     - Público-alvo e expectativas
+     - Marca e identidade visual
    - Quando `imageDescription` indicar conteúdo inadequado ou confuso, marque como **Constatação** com severidade baseada no impacto na experiência.
 9) **Prioridade de correção**
    - Priorize: frequência alta (`quantidade`), área visível (acima/esquerda) e impacto na tarefa.
