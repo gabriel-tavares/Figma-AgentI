@@ -1381,7 +1381,7 @@ const normalizeImageUrl = (u) =>
         // Executar orquestração: A (JSON) + B (Vision) → C (Reconciler)
         const resultadoFinal = await orchestrateAnalysis(
           spec,           // figmaSpec para Agente A
-          base64Image,    // imagem para Agente B (se disponível)
+          itemImg,        // imagem para Agente B (se disponível)
           metodo,         // método heurístico
           vectorStoreId,  // RAG
           group           // identificação do grupo

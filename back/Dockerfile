@@ -48,6 +48,11 @@ RUN echo "NODE_ENV=production" > .env && \
     echo "# Análise Heurística - Texto (TIER 1 para qualidade, TIER 2 para volume)" >> .env && \
     echo "MODELO_TEXTO=gpt-5-mini" >> .env && \
     echo "" >> .env && \
+    echo "# Modelos dos Agentes Orquestrados" >> .env && \
+    echo "MODELO_AGENTE_A=gpt-5-mini" >> .env && \
+    echo "MODELO_AGENTE_B=gpt-4o-mini" >> .env && \
+    echo "MODELO_AGENTE_C=o3-mini" >> .env && \
+    echo "" >> .env && \
     echo "# Configurações de temperatura e tokens" >> .env && \
     echo "TEMP_VISION=0.1" >> .env && \
     echo "TEMP_TEXTO=0.2" >> .env && \
