@@ -1645,6 +1645,69 @@ app.get("/ping-openai", async (_req, res) => {
   }
 });
 
+// ==========================================
+// ENDPOINTS TEMPORÁRIOS PARA DEBUG
+// ==========================================
+
+// Endpoint para listar arquivos de debug
+app.get('/debug/files', (req, res) => {
+  try {
+    const files = {
+      debug_layouts: [],
+      debug_responses: [],
+      debug_vision: []
+    };
+    
+    // Listar arquivos de cada diretório
+    const dirs = ['debug_layouts', 'debug_responses', 'debug_vision'];
+    
+    dirs.forEach(dir => {
+      const dirPath = path.join(__dirname, dir);
+      if (fs.existsSync(dirPath)) {
+        const dirFiles = fs.readdirSync(dirPath).map(file => ({
+          name: file,
+          path: `${dir}/${file}`,
+          size: fs.statSync(path.join(dirPath, file)).size,
+          modified: fs.statSync(path.join(dirPath, file)).mtime
+        }));
+        files[dir] = dirFiles;
+      }
+    });
+    
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Endpoint para baixar arquivo específico
+app.get('/debug/download/:dir/:file', (req, res) => {
+  try {
+    const { dir, file } = req.params;
+    const filePath = path.join(__dirname, dir, file);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+    
+    const content = fs.readFileSync(filePath, 'utf8');
+    
+    // Se for JSON, formatar
+    if (file.endsWith('.json')) {
+      try {
+        const parsed = JSON.parse(content);
+        res.json(parsed);
+      } catch {
+        res.type('text/plain').send(content);
+      }
+    } else {
+      res.type('text/plain').send(content);
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /**
  * ============================================
  *  Rota de Benchmark Multi-IA com Imagens
