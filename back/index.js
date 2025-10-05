@@ -1505,7 +1505,7 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
             method: "POST",
             headers: HEADERS_VISION,
             body: JSON.stringify({
-              model: "gpt-4o",
+              model: MODELO_TEXTO,
               messages: [{ role: "user", content: promptCompleto }],
               temperature: parseFloat(process.env.TEMP_TEXTO || "0.2"),
               max_tokens: parseInt(process.env.MAX_TOKENS_TEXTO || "8192")
