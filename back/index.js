@@ -1129,11 +1129,31 @@ const normalizeImageUrl = (u) =>
         let figmaSpecFile = null;
         if (hasSpec && spec) {
           try {
-            const tempDir = path.join(__dirname, "temp");
-            fs.mkdirSync(tempDir, { recursive: true });
-            figmaSpecFile = path.join(tempDir, `figma_spec_item${i+1}.json`);
-            fs.writeFileSync(figmaSpecFile, JSON.stringify(spec, null, 2), 'utf8');
-            logger.debug(`figmaSpec salvo em: ${figmaSpecFile}`);
+            // Tentar primeiro /tmp (sempre tem permissão), depois /app/temp
+            const tempDirs = ["/tmp", path.join(__dirname, "temp")];
+            let tempDir = null;
+            
+            for (const dir of tempDirs) {
+              try {
+                fs.mkdirSync(dir, { recursive: true });
+                // Testar se consegue escrever
+                const testFile = path.join(dir, 'test_write.tmp');
+                fs.writeFileSync(testFile, 'test');
+                fs.unlinkSync(testFile);
+                tempDir = dir;
+                break;
+              } catch (e) {
+                logger.debug(`Diretório ${dir} não disponível: ${e.message}`);
+              }
+            }
+            
+            if (tempDir) {
+              figmaSpecFile = path.join(tempDir, `figma_spec_item${i+1}.json`);
+              fs.writeFileSync(figmaSpecFile, JSON.stringify(spec, null, 2), 'utf8');
+              logger.debug(`figmaSpec salvo em: ${figmaSpecFile}`);
+            } else {
+              throw new Error("Nenhum diretório temporário disponível");
+            }
           } catch (e) {
             logger.warn(`   Erro ao salvar figmaSpec: ${e.message}`);
             logger.info(`   Fallback: enviando figmaSpec no prompt (sem arquivo)`);
