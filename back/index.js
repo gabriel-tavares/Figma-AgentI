@@ -1133,8 +1133,11 @@ const normalizeImageUrl = (u) =>
             fs.mkdirSync(tempDir, { recursive: true });
             figmaSpecFile = path.join(tempDir, `figma_spec_item${i+1}.json`);
             fs.writeFileSync(figmaSpecFile, JSON.stringify(spec, null, 2), 'utf8');
+            logger.debug(`figmaSpec salvo em: ${figmaSpecFile}`);
           } catch (e) {
             logger.warn(`   Erro ao salvar figmaSpec: ${e.message}`);
+            logger.info(`   Fallback: enviando figmaSpec no prompt (sem arquivo)`);
+            figmaSpecFile = null; // Força fallback para prompt inline
           }
         }
         
