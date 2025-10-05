@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+    <title>Agent.I – UI</title>
+
+  <!-- Fonte -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Animate -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+
+
+  <style>
+    :root { --radius-card: 12px; font-size: 12px; color: #121033 !important;}
+    body { margin: 0; padding: 20px; font-family: "Quicksand", sans-serif; font-optical-sizing: auto; font-weight: 500; font-style: normal; color: #121033 !important;}
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .navbar {border-bottom:1px solid #cccccc; background: linear-gradient(130deg, #6D1FEC 12.00%, #00F6E7 150.42%);
+}
+    .navbar .nav-link { color:#fff; font-weight:600;} 
+    .navbar .nav-link.active { color:#fff; font-weight:600;  text-decoration:underline;}
+    .selecionados {background: #D9E7FA !important; color:#2862B0 !important; font-size: 10px; font-weight: 600; padding:6px 8px 5px 8px !important;}
+    h5 {color: #2e2883;}
+    .title-header {height: 29px;}
+
+    .navbar .nav-link.active {color: #fff; font-weight: 600; text-decoration:underline;}
+    
+  .btn-plugin { 
+  color: #FFFFFF; 
+  background-color: #3F37AF; 
+  border-color: #3127B8; 
+} 
+ 
+.btn-plugin:hover, 
+.btn-plugin:focus, 
+.btn-plugin:active, 
+.btn-plugin.active, 
+.open .dropdown-toggle.btn-plugin { 
+  color: #FFFFFF; 
+  background-color: #272173; 
+  border-color: #3127B8; 
+} 
+ 
+.btn-plugin:active, 
+.btn-plugin.active, 
+.open .dropdown-toggle.btn-plugin { 
+  background-image: none; 
+} 
+ 
+.btn-plugin.disabled, 
+.btn-plugin[disabled], 
+fieldset[disabled] .btn-plugin, 
+.btn-plugin.disabled:hover, 
+.btn-plugin[disabled]:hover, 
+fieldset[disabled] .btn-plugin:hover, 
+.btn-plugin.disabled:focus, 
+.btn-plugin[disabled]:focus, 
+fieldset[disabled] .btn-plugin:focus, 
+.btn-plugin.disabled:active, 
+.btn-plugin[disabled]:active, 
+fieldset[disabled] .btn-plugin:active, 
+.btn-plugin.disabled.active, 
+.btn-plugin[disabled].active, 
+fieldset[disabled] .btn-plugin.active { 
+  background-color: #3F37AF; 
+  border-color: #3127B8; 
+} 
+ 
+.btn-plugin .badge { 
+  color: #3F37AF; 
+  background-color: #FFFFFF; 
+}
+    
+
+
+    /* Loading overlay */
+    #loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none; align-items: center; justify-content: center; z-index: 1000; flex-direction: column; }
+    .circle { width: 160px; height: 160px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; }
+    .lottie-animation { width: 140px; height: 140px; }
+
+    /* Typewriter – estável e com quebra de linha */
+    .loading-text {
+      background: #fff; color: #121033; margin-top: 20px; font-size: 12px;
+      text-align: left; min-height: 20px; padding: 6px 12px; border-radius: 600px;
+      min-width: 160px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 6px;
+      white-space: normal; max-width: 95%;
+      font-variant-ligatures: none;
+    }
+    .loading-text .tw-text { display: inline-block; min-width: 1px; }
+    .loading-text .tw-cursor { display: inline-block; width: 1px; animation: tw-blink 1s steps(2, start) infinite; }
+    @keyframes tw-blink { 0%,49%{visibility:visible;} 50%,100%{visibility:hidden;} }
+
+    /* Cards do resumo */
+    #summary-list-side { max-height: calc(100vh - 160px); overflow-y: auto; }
+    .summary-card { background:#f7f7f8; border:1px solid #e7e7ea; border-radius: var(--radius-card); padding:14px 16px; margin-bottom:12px; }
+    .summary-title { margin-bottom:6px; }
+    .summary-row { display:flex; gap:12px; flex-wrap:wrap; }
+    .pill { background:#fff; border:1px solid #dee2e6; border-radius:999px; padding:6px 10px; font-weight:600; font-size:12px; }
+    .summary-actions { margin-top:16px; display:flex; gap:12px; }
+
+    /* Sidenav largura confortável */
+    #offResumo.offcanvas-end { width: 90%; }
+
+    /* Área opcional de mensagens */
+    #analises img {  border: 1px solid #ced4da; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+    
+    .mensagem-erro-texto {height: 16px;}
+  
+    .issues .issue{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed #e7e7e7;}
+    .issues .issue:last-child{border-bottom:0;}
+    .issue .title {font-size: 12px; font-weight: 500;}
+    .issues .sev-text{opacity:.7;font-weight:500;}
+    .issues .loc{border:0;background:transparent;padding:2px;cursor:pointer;}
+  
+    .resumo-filter{height:28px;}
+    .resumo-filter span{font-size: 12px;}
+    .offcanvas-header {height:46px; padding: 0 12px;}
+
+
+    /* === Filtros por severidade (Resumo) === */
+    .sev-filter { display:flex; gap:8px; flex-wrap:wrap; }
+    .sev-badge { 
+      --sev-color:#999;
+      background: var(--sev-color);
+      color:#fff; border:2px solid var(--sev-color);
+      border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700;
+      transition: all .15s ease-in-out;
+    }
+    .sev-badge.off { background: transparent; color: var(--sev-color); }
+
+    #summary-list-side { max-height: calc(100vh - 160px); overflow-y: auto; }
+    .issues .issue.clickable { cursor: pointer; }
+    .sev-badge{padding: 2px 0 2px 0; font-size: 10px;}
+    .sev-badge.sev-alto {border:1px solid #d0224140 !important; background:#d0224126!important; color:#B11D37!important; }
+    .sev-badge.sev-medio {border:1px solid #f68d2a26 !important; background:#f68d2a26!important; color:#AC631D
+!important; }
+    .sev-badge.sev-baixo {border:1px solid #099f6926 !important; background:#099f6926!important; color:#066F49!important; }
+    .sev-badge.sev-positivo {border:1px solid #0da6d626 !important; background:#0da6d626!important; color:#097496!important; }
+    .sev-badge.off { background:#fff!important;}
+    .sev-badge.sev-alto.off {border:1px solid #B11D37 !important;}
+    .sev-badge.sev-medio.off {border:1px solid #AC631D !important;}
+    .sev-badge.sev-baixo.off {border:1px solid #066F49 !important;}
+    .sev-badge.sev-positivo.off {border:1px solid #097496 !important;}
+
+    .eye-toggle{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px; font-size: 12px; font-weight:500;}
+    .eye-toggle .eye-closed{display:none}
+    .eye-toggle[data-state="off"] .eye-open{display:none}
+    .eye-toggle[data-state="off"] .eye-closed{display:inline}
+
+    .toast-container {top: 50px; left: -50px; z-index: 1100; width: 280px; }
+    .toast-container .toast {border-radius: 0 6px 6px 0 !important;}
+    .toast-container .toast-body {font-size: 12px !important; font-weight: 600; padding-left: 60px;}
+  </style>
+</head>
+<body class="p-0">
+<div id="toastZone" class="toast-container"></div>
+  <nav class="navbar navbar-expand-xxl navbar-expand">
+    <div class="container-fluid">
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item px-2">
+            <a id="nav-analise" class="nav-link active" href="#" data-screen="form-screen">Análise</a>
+          </li>
+          <li class="nav-item px-2">
+            <a id="nav-guia" class="nav-link" href="#" data-screen="guia-screen">Guia rápido</a>
+          </li>
+          <li class="nav-item px-2">
+            <a id="nav-benchmark" class="nav-link" href="#" data-screen="benchmark-screen">Bench AI</a>
+          </li>
+          <li class="nav-item px-2">
+            <a id="nav-sobre" class="nav-link" href="#" data-screen="sobre-screen">Sobre o plugin</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="px-3 pt-3">
+    <!-- ====== TELA 1: ANÁLISE ====== -->
+    <div id="form-screen" class="screen active">
+      <!-- Cabeçalho com botão de Resumo -->
+      <div class="d-flex align-items-center mb-2 align-middle title-header">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g clip-path="url(#clip0_2606_5302)">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M10.2387 2.55414C9.33003 1.89084 8.21118 1.5 7 1.5C3.96243 1.5 1.5 3.96243 1.5 7C1.5 7.41421 1.16421 7.75 0.75 7.75C0.335787 7.75 0 7.41421 0 7C0 3.13401 3.13401 0 7 0C8.62498 0 10.1216 0.554437 11.3094 1.48344L12.1464 0.646461C12.2894 0.503462 12.5045 0.460684 12.6913 0.538075C12.8781 0.615465 13 0.797783 13 1.00001V3.50001C13 3.77616 12.7761 4.00001 12.5 4.00001H9.99996C9.79773 4.00001 9.61541 3.87819 9.53802 3.69136C9.46063 3.50452 9.50341 3.28946 9.64641 3.14646L10.2387 2.55414ZM12.5 7C12.5 6.58579 12.8358 6.25 13.25 6.25C13.6642 6.25 14 6.58579 14 7C14 10.866 10.866 14 7 14C5.37501 14 3.87836 13.4456 2.69056 12.5166L1.85355 13.3536C1.71055 13.4966 1.4955 13.5393 1.30866 13.4619C1.12182 13.3845 1 13.2022 1 13V10.5C1 10.2239 1.22386 10 1.5 10H4C4.20223 10 4.38455 10.1218 4.46194 10.3087C4.53933 10.4955 4.49655 10.7106 4.35355 10.8536L3.76126 11.4459C4.66996 12.1092 5.78882 12.5 7 12.5C10.0376 12.5 12.5 10.0376 12.5 7ZM6.18549 4.0314C6.37297 3.1605 7.60579 3.15428 7.80095 4.02436L7.82624 4.13711C8.06479 5.2006 8.90583 6.0077 9.95161 6.19271C10.8495 6.35154 10.8495 7.64846 9.95161 7.80729C8.90583 7.9923 8.06479 8.7994 7.82624 9.86289L7.80095 9.97565C7.60579 10.8457 6.37297 10.8395 6.18549 9.9686L6.16466 9.87185C5.93483 8.80423 5.09471 7.99103 4.04706 7.8057C3.15098 7.64717 3.15097 6.35283 4.04706 6.19431C5.09471 6.00897 5.93483 5.19577 6.16466 4.12815L6.18549 4.0314Z" fill="url(#paint0_linear_2606_5302)"/>
+        </g>
+        <defs>
+        <linearGradient id="paint0_linear_2606_5302" x1="0.537934" y1="1.13134" x2="16.4943" y2="10.1246" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#00F6E7"/>
+        <stop offset="1" stop-color="#6D1FEC"/>
+        </linearGradient>
+        <clipPath id="clip0_2606_5302">
+        <rect width="14" height="14" fill="white"/>
+        </clipPath>
+        </defs>
+        </svg>
+        <h5 class="fw-semibold mb-0 ps-2">Análise</h5>
+        <button id="btnResumo" class="btn btn-outline-secondary btn-md ms-auto" data-bs-toggle="offcanvas" data-bs-target="#offResumo">Resumo</button>
+      </div>
+      <div class="card">
+      <div class="card-header d-flex align-items-center">
+        <p class="help-text fw-normal m-0">Selecione a tela, escolha a heurística e dê um contexto… o resto deixe com “Agent.I”.</p>      
+      </div>
+
+      <div class="card-body align-items-center align-middle">
+        <label for="metodo" class="form-label fw-medium m-0">Método</label>
+        <select id="metodo" class="form-select form-control-sm fw-medium">
+          <option value="nielsen" class="fw-medium">Heurísticas de Nielsen</option>
+          <option value="vieses" class="fw-medium">Vieses Cognitivos</option>
+        </select>
+      </div>
+
+      <div class="card-body pt-0">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <label id="txtDescricao" for="descricao" class="form-label fw-medium m-0"></label>
+          <span id="selBadge" class="badge rounded-pill selecionados"></span>    
+        </div>    
+        <textarea id="descricao" rows="4" class="form-control fw-medium" placeholder="Descreva brevemente..."></textarea>
+      </div>
+       <div class="card-body pt-0">
+      <button id="analisarBtn" class="btn btn-plugin btn-dark btn-md w-100 fw-semibold">Analisar</button>
+      <div id="mensagem-erro" class="p-1 alert alert-danger d-flex d-none align-items-center justify-content-center fw-semibold alert-dismissible fade show" role="alert"></div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ====== TELA 2: GUIA RÁPIDO ====== -->
+    <div id="guia-screen" class="screen">
+      <div class="d-flex align-items-center mb-2 align-middle title-header">
+        <svg width="16" height="14" viewBox="0 0 16 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M7.77282 0.0470974C7.91776 -0.0156991 8.08224 -0.0156991 8.22718 0.0470974L15.6558 3.26571C15.8647 3.35626 16 3.56227 16 3.79003C16 4.01781 15.8647 4.22382 15.6558 4.31437L8.22718 7.53298C8.08224 7.59578 7.91776 7.59578 7.77282 7.53298L2.65178 5.31416V10.2855C3.20681 10.5519 3.59002 11.1192 3.59002 11.7761C3.59002 12.6887 2.85017 13.4286 1.93752 13.4286C1.02487 13.4286 0.285017 12.6887 0.285017 11.7761C0.285017 11.1193 0.668202 10.552 1.22321 10.2855V4.6952L0.34425 4.31437C0.135259 4.22382 0 4.01781 0 3.79003C0 3.56227 0.135259 3.35626 0.34425 3.26571L7.77282 0.0470974ZM7.20487 8.84379L3.6601 7.30794L3.66357 9.03737C3.66376 9.13762 3.69033 9.23605 3.74061 9.32279L4.23499 9.03623C3.74061 9.32279 3.74041 9.32247 3.74061 9.32279L3.74138 9.32411L3.74225 9.3256L3.74426 9.32903L3.74944 9.33763L3.76442 9.36167C3.7765 9.38062 3.79283 9.4053 3.81365 9.43488C3.85528 9.49402 3.91502 9.57293 3.9949 9.6648C4.15469 9.84855 4.39566 10.0848 4.73385 10.3182C5.41619 10.7888 6.47026 11.2307 7.9996 11.2307C9.52893 11.2307 10.5844 10.7889 11.268 10.3185C11.6069 10.0854 11.8486 9.84934 12.0089 9.66578C12.0891 9.574 12.1491 9.49519 12.191 9.43614C12.2119 9.40659 12.2282 9.38195 12.2403 9.36305L12.2554 9.33906L12.2606 9.33048L12.2626 9.32707L12.2635 9.3256C12.2638 9.32527 12.2642 9.32427 11.7707 9.03623L12.2642 9.32427C12.3153 9.23682 12.3422 9.13738 12.3422 9.03612L12.3418 7.30709L8.79512 8.84379C8.28782 9.0636 7.71217 9.0636 7.20487 8.84379Z" fill="url(#paint0_linear_840_1492)"/>
+        <defs>
+        <linearGradient id="paint0_linear_840_1492" x1="0.614782" y1="1.08516" x2="17.1752" y2="12.2062" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#00F6E7"/>
+        <stop offset="1" stop-color="#6D1FEC"/>
+        </linearGradient>
+        </defs>
+        </svg>
+      <h5 class="fw-semibold mb-0 ps-2">Guia rápido</h5>
+      </div>
+      <div class="bg-light p-3 rounded-3 border">
+        <ol class="m-0">
+          <li class="mb-2">Selecione 1 tela para “<strong>Contexto da tela</strong>” ou 2+ para “<strong>Contexto do fluxo</strong>”.</li>
+          <li class="mb-2">Escolha o <strong>método</strong> (Nielsen ou Vieses).</li>
+          <li class="mb-2">Descreva um <strong>contexto breve</strong> (opcional, mas ajuda a IA).</li>
+          <li class="mb-2">Clique em <strong>Analisar</strong> — o resto deixe com <strong>Agente</strong> 😉</li>
+        </ol>
+      </div>
+      <div class="mt-3 small text-muted">
+        Dica: o botão <em>Resumo</em> abre o painel lateral com totais de severidade e links de referência.
+      </div>
+    </div>
+
+    <!-- ====== TELA 3: BENCHMARK MULTI-IA ====== -->
+    <div id="benchmark-screen" class="screen">
+      <div class="d-flex align-items-center mb-2 align-middle title-header">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 0C3.58 0 0 3.58 0 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z" fill="url(#paint0_linear_benchmark)"/>
+          <path d="M8 2C4.69 2 2 4.69 2 8s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="url(#paint1_linear_benchmark)"/>
+          <defs>
+            <linearGradient id="paint0_linear_benchmark" x1="0" y1="0" x2="16" y2="16" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#00F6E7"/>
+              <stop offset="1" stop-color="#6D1FEC"/>
+            </linearGradient>
+            <linearGradient id="paint1_linear_benchmark" x1="2" y1="2" x2="14" y2="14" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#00F6E7"/>
+              <stop offset="1" stop-color="#6D1FEC"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <h5 class="fw-semibold mb-0 ps-2">Bench AI</h5>
+        <button id="btnModelos" class="btn btn-outline-secondary btn-md ms-auto" data-bs-toggle="offcanvas" data-bs-target="#offModelos">Modelos</button>
+      </div>
+      
+      <div class="card">
+        <div class="card-header d-flex align-items-center">
+          <p class="help-text fw-normal m-0">Teste múltiplas IAs simultaneamente com suas imagens reais do Figma.</p>      
+        </div>
+
+        <div class="card-body align-items-center align-middle">
+        </div>
+
+        <div class="card-body pt-0">
+          <div class="alert alert-info p-2 mb-2">
+            <small class="m-0">📐 <strong>Análise de Layout:</strong> Identifica problemas de hierarquia visual e navegação</small>
+          </div>
+        </div>
+
+        <div class="card-body pt-0">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <label for="benchmark-selection" class="form-label fw-medium m-0">Seleção</label>
+            <span id="benchmark-selBadge" class="badge rounded-pill selecionados"></span>    
+          </div>
+          <div class="alert alert-info p-2 mb-2">
+            <small class="m-0">📸 A primeira tela selecionada será usada como imagem de teste para todas as IAs.</small>
+          </div>
+        </div>
+
+        <div class="card-body pt-0">
+          <button id="benchmarkBtn" class="btn btn-plugin btn-dark btn-md w-100 fw-semibold">🚀 Executar Bench AI</button>
+          <div id="benchmark-erro" class="p-1 alert alert-danger d-flex d-none align-items-center justify-content-center fw-semibold alert-dismissible fade show" role="alert"></div>
+        </div>
+      </div>
+
+      <!-- Resultados do Benchmark -->
+      <div id="benchmark-results" class="mt-3" style="display: none;">
+        <div class="card">
+          <div class="card-header">
+            <h6 class="fw-semibold mb-0">📊 Resultados do Bench AI</h6>
+          </div>
+          <div class="card-body">
+            <div id="benchmark-stats" class="row mb-3">
+              <!-- Estatísticas serão inseridas aqui -->
+            </div>
+            <div id="benchmark-ranking" class="list-group">
+              <!-- Ranking será inserido aqui -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TELA 4: SOBRE O PLUGIN ====== -->
+    <div id="sobre-screen" class="screen">
+      <div class="d-flex align-items-center mb-2 align-middle">
+        <h5 class="fw-semibold mb-0">Sobre o plugin</h5>
+      </div>
+      <div class="bg-white p-3 rounded-3 border">
+        <p class="m-0">
+          Plugin de <strong>análise heurística</strong> para Figma com apoio de IA. 
+          Avalia rapidamente a usabilidade das suas telas, gera cards com achados e 
+          links para consulta. Foque no design — o resto deixe com <strong>Agente</strong>.
+        </p>
+      </div>
+      <div class="mt-3 small text-muted">
+        Métodos: Heurísticas de Nielsen e Vieses Cognitivos. Painel de resumo com severidade e referências.
+        <br><strong>Novo:</strong> Bench AI com OpenRouter para comparar diferentes modelos.
+      </div>
+    </div>
+
+    <!-- Offcanvas de Resumo -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offResumo" aria-labelledby="offResumoLabel">
+      <div class="d-flex justify-content-between offcanvas-header">
+        <!--<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>-->
+        <div class="d-flex align-items-center">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 2.5H5.75C5.05964 2.5 4.5 1.94036 4.5 1.25C4.5 0.559644 5.05964 0 5.75 0H8.25C8.94036 0 9.5 0.559644 9.5 1.25C9.5 1.94036 8.94036 2.5 8.25 2.5ZM5.75 3.75H8.25C9.63071 3.75 10.75 2.63071 10.75 1.25C10.75 1.16563 10.7458 1.08223 10.7377 1H11.5C12.3284 1 13 1.67157 13 2.5V12.5C13 13.3284 12.3284 14 11.5 14H2.5C1.67157 14 1 13.3284 1 12.5V2.5C1 1.67157 1.67157 1 2.5 1H3.26234C3.25418 1.08223 3.25 1.16563 3.25 1.25C3.25 2.63071 4.36929 3.75 5.75 3.75ZM10.1 6.95C10.3485 6.61863 10.2814 6.14853 9.95 5.9C9.61863 5.65147 9.14853 5.71863 8.9 6.05L6.32569 9.48241L5.41603 8.87596C5.07138 8.6462 4.60573 8.73933 4.37596 9.08397C4.1462 9.42862 4.23933 9.89427 4.58397 10.124L6.08397 11.124C6.41517 11.3448 6.86117 11.2684 7.1 10.95L10.1 6.95Z" fill="url(#paint0_linear_2606_3411)"/>
+          <defs>
+          <linearGradient id="paint0_linear_2606_3411" x1="1.46109" y1="1.13134" x2="16.0725" y2="8.19015" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#00F6E7"/>
+          <stop offset="1" stop-color="#6D1FEC"/>
+          </linearGradient>
+          </defs>
+          </svg>
+          <h5 id="offResumoLabel" class="offcanvas-title fw-semibold mb-0 ps-2">Resumo da análise</h5>
+        </div>
+        <div class="ms-5 d-flex align-items-center">
+          <div class="btn-group" role="group" aria-label="Visibilidade e ações" style="height: 30px;">
+            <button id="toggleHeuristica" class="btn btn-outline-secondary eye-toggle px-2" type="button" aria-pressed="true" data-state="on" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="custom-tooltip" data-bs-title="Oculte os cards de análise [AI]">
+              <!-- olho aberto -->
+              <svg class="eye-open" width="20" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18.6426 6.19707C18.8726 6.48384 19 6.85642 19 7.24273C19 7.62904 18.8726 8.00161 18.6426 8.28838C17.186 10.052 13.8704 13.4854 10 13.4854C6.12957 13.4854 2.81403 10.052 1.35741 8.28838C1.12735 8.00161 1 7.62904 1 7.24273C1 6.85642 1.12735 6.48384 1.35741 6.19707C2.81403 4.4335 6.12957 1 10 1C13.8704 1 17.186 4.4335 18.6426 6.19707Z" stroke="#2E2883" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9.99912 10.0168C11.5314 10.0168 12.7736 8.7746 12.7736 7.24228C12.7736 5.70996 11.5314 4.46777 9.99912 4.46777C8.4668 4.46777 7.22461 5.70996 7.22461 7.24228C7.22461 8.7746 8.4668 10.0168 9.99912 10.0168Z" stroke="#2E2883" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <!-- olho fechado -->
+              <svg class="eye-closed" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5.33316 5.32639C6.70773 4.43318 8.30048 3.76953 10.0005 3.76953C13.8635 3.76953 17.1728 7.1965 18.6267 8.95672C18.8562 9.24294 18.9833 9.61481 18.9833 10.0004C18.9833 10.386 18.8562 10.7578 18.6267 11.0441C17.8252 12.0143 16.46 13.491 14.7492 14.621M12.0774 15.9122C11.4095 16.1142 10.7144 16.2312 10.0005 16.2312C6.13739 16.2312 2.82816 12.8043 1.37431 11.0441C1.14468 10.7578 1.01758 10.386 1.01758 10.0004C1.01758 9.61481 1.14468 9.24294 1.37431 8.95672C1.83493 8.39902 2.4818 7.67402 3.27352 6.94372" stroke="#2E2883" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M11.9583 11.9578C13.0397 10.8764 13.0397 9.123 11.9583 8.04155C10.8768 6.96011 9.12345 6.96011 8.04199 8.04155" stroke="#2E2883" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19 19L1 1" stroke="#2E2883" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span id="toggleHeuristicaCount" class="ms-2"></span>
+              <span id="toggleHeuristicaLabel" class="ms-1">cards</span>
+
+            </button>
+            <button type="button" class="btn btn-outline-secondary  dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="visually-hidden">Abrir menu</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item text-danger" id="btnApagarTodosCards">Apagar todos os cards…</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="px-3 py-2 align-items-center" style="border-bottom: 1px solid #eee; border-top: 1px solid #eee;">      
+      <div class="p-3">
+        </div>
+      </div>
+    </div>
+
+    <!-- Offcanvas de Modelos -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offModelos" aria-labelledby="offModelosLabel">
+      <div class="d-flex justify-content-between offcanvas-header">
+        <div class="d-flex align-items-center">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 0C3.134 0 0 3.134 0 7s3.134 7 7 7 7-3.134 7-7-3.134-7-7-7zm0 12.5c-3.038 0-5.5-2.462-5.5-5.5S3.962 1.5 7 1.5s5.5 2.462 5.5 5.5-2.462 5.5-5.5 5.5z" fill="url(#paint0_linear_modelos)"/>
+            <path d="M7 3c-2.209 0-4 1.791-4 4s1.791 4 4 4 4-1.791 4-4-1.791-4-4-4zm0 6.5c-1.381 0-2.5-1.119-2.5-2.5S5.619 4.5 7 4.5s2.5 1.119 2.5 2.5S8.381 9.5 7 9.5z" fill="url(#paint1_linear_modelos)"/>
+            <defs>
+              <linearGradient id="paint0_linear_modelos" x1="0" y1="0" x2="14" y2="14" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#00F6E7"/>
+                <stop offset="1" stop-color="#6D1FEC"/>
+              </linearGradient>
+              <linearGradient id="paint1_linear_modelos" x1="3" y1="3" x2="11" y2="11" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#00F6E7"/>
+                <stop offset="1" stop-color="#6D1FEC"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <h5 id="offModelosLabel" class="offcanvas-title fw-semibold mb-0 ps-2">Modelos em Teste</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+      </div>
+      <div class="offcanvas-body p-0 pe-3">
+        <div class="p-3">
+          <div class="mb-3">
+            <h6 class="fw-semibold text-primary mb-2">🤖 Modelos OpenAI</h6>
+            <div class="list-group list-group-flush">
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <strong>GPT-4.1 Mini</strong>
+                  <small class="text-muted d-block">Balanceado - bom custo-benefício</small>
+                </div>
+                <span class="badge bg-success">Score: 80/100</span>
+              </div>
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <strong>GPT-4o Mini</strong>
+                  <small class="text-muted d-block">Vision otimizada - melhor para imagens</small>
+                </div>
+                <span class="badge bg-success">Score: 80/100</span>
+              </div>
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <strong>GPT-4o</strong>
+                  <small class="text-muted d-block">Alta qualidade - mais preciso</small>
+                </div>
+                <span class="badge bg-success">Score: 80/100</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <h6 class="fw-semibold text-info mb-2">🌐 Modelos OpenRouter</h6>
+            <div class="list-group list-group-flush">
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <strong>Llama 3.1 8B</strong>
+                  <small class="text-muted d-block">Meta - Modelo compacto e rápido</small>
+                </div>
+                <span class="badge bg-success">Score: 80/100</span>
+              </div>
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <strong>Grok 4 Fast</strong>
+                  <small class="text-muted d-block">xAI - Modelo multimodal mais recente</small>
+                </div>
+                <span class="badge bg-success">Score: 80/100</span>
+              </div>
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <strong>DeepSeek V3.1</strong>
+                  <small class="text-muted d-block">DeepSeek - Modelo híbrido 671B</small>
+                </div>
+                <span class="badge bg-success">Score: 80/100</span>
+              </div>
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div>
+                  <strong>Venice Uncensored</strong>
+                  <small class="text-muted d-block">Cognitive Computations - Sem censura</small>
+                </div>
+                <span class="badge bg-success">Score: 80/100</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info p-2">
+            <small class="m-0">📊 <strong>Total:</strong> 7 modelos funcionais testando simultaneamente</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div id="loading-overlay">
+    <div class="circle"><div id="loading" class="lottie-animation"></div></div>
+    <div class="loading-text"></div>
+  </div>
+
+  <!-- libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.4/lottie.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Modal: confirmar apagar todos os cards -->
+  <div class="modal fade" id="confirmApagarCardsModal" tabindex="-1" aria-labelledby="confirmApagarCardsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold" id="confirmApagarCardsLabel">Apagar todos os cards?</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          Essa ação removerá <strong>todos os cards de análise</strong> do arquivo. Você tem certeza que deseja prosseguir?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="confirmApagarCards">Apagar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<script>
+    /* ========= helpers gerais ========= */
+    function normalizeLink(url){ if(!url) return ""; return /^https?:\/\//i.test(url) ? url : "https://" + url; }
+    function hideMensagem(){ const el = document.getElementById("mensagem-erro"); el.textContent=""; el.classList.add("d-none"); }
+    function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+
+    
+    // -------- Helpers de extração (resumo) --------
+    // Pega o conteúdo da linha 2 - ... (Problema/Título do card)
+    function getTituloFromTwo(card){
+      const txt = String(card?.analise || card?.texto || card?.text || "");
+      // Captura "2 - <conteúdo>" até antes da próxima linha numerada
+      const m = txt.match(/(?:^|\n)\s*2\s*-\s*([^\n]+?)(?=\n\s*\d+\s*-|$)/i);
+      if (m && m[1]) return m[1].trim();
+      // Fallbacks
+      return card?.titulo || card?.title || card?.headline || "";
+    }
+    function getNodeId(card){
+      return card?.nodeId || card?.nodeID || card?.node_id || card?.idNode || card?.elementId || card?.elementoId || card?.componentId
+        || card?.targetNodeId || card?.targetId
+        || (card?.target && (card.target.id || card.target.nodeId || card.target.nodeID))
+        || card?.frameId || card?.frameID || card?.id || "";
+    }
+/* ===== Navegação entre telas (menu) ===== */
+    document.querySelectorAll('.navbar .nav-link[data-screen]').forEach(a=>{
+      a.addEventListener('click', (ev)=>{
+        ev.preventDefault();
+        const target = a.getAttribute('data-screen');
+        showScreen(target);
+        document.querySelectorAll('.navbar .nav-link').forEach(n=>n.classList.remove('active'));
+        a.classList.add('active');
+      });
+    });
+
+    function setSelectionCount(n){
+      const badge = document.getElementById("selBadge");
+      const txtDes = document.getElementById("txtDescricao");
+      if (badge) badge.textContent = `${n} Tela${n < 2 ? "" : "s"} selecionada${n < 2 ? "" : "s"}`;
+      if (txtDes) { txtDes.textContent = n < 2 ? "Contexto da tela" : "Contexto do fluxo"; }
+    }
+
+    /* ========= carrega JSON de links ========= */
+    let heuristicasLinks = {};
+    const linksReady = fetch('http://localhost:3000/heuristicas_links.json?v=' + Date.now())
+      .then(r => r.json())
+      .then(data => { heuristicasLinks = data || {}; })
+      .catch(err => { console.error("Erro ao carregar links", err); heuristicasLinks = {}; });
+
+    /* ========= Loading com frases ========= */
+    const frasesComplexas = [
+      { inicial: "🧭 Navegando sem mapa de navegação...", apagarAte: "🧭 Navegando", final: " pelos fluxos do usuário..." },
+      { inicial: "🧪 Testando com opinião própria...", apagarAte: "🧪 Testando", final: " com evidências e heurísticas..." },
+      { inicial: "📖 Lendo o manual de 1998...", apagarAte: "📖 Lendo", final: " as diretrizes atuais..." },
+      { inicial: "👀 Olhando só para as cores...", apagarAte: "👀 Olhando", final: " para contraste e legibilidade..." },
+      { inicial: "🔍 Consultando o horóscopo do dia...", apagarAte: "🔍 Consultando", final: " material na base de dados..." },
+      { inicial: "📚 Aplicando heurísticas aleatórias...", apagarAte: "📚 Aplicando heurísticas", final: " testadas e validadas..." },
+      { inicial: "📣 Buscando feedback com a minha mãe...", apagarAte: "📣 Buscando feedback", final: " com usuários reais..." },
+      { inicial: "👤 Design centrado no stakeholder...", apagarAte: "👤 Design", final: " centrado no usuário..." },
+      { inicial: "🗒️ Consultando receita de brigadeiro...", apagarAte: "🗒️ Consultando", final: " manual de UX.." },
+      { inicial: "🧠 Usando apenas achismo...", apagarAte: "🧠 Usando", final: " evidências de pesquisa..." },
+      { inicial: "🎨 Colando post-its coloridos...", apagarAte: "🎨 Colando", final: " insights valiosos no mural..." },
+      { inicial: "🤹 Tentando agradar a todos...", apagarAte: "🤹 Tentando", final: " equilibrar as necessidades certas..." },
+      { inicial: "🚀 Correndo sem direção...", apagarAte: "🚀 Correndo", final: " em um fluxo bem planejado..." },
+      { inicial: "🎭 Fazendo teatro com personas...", apagarAte: "🎭 Fazendo", final: " pesquisas que refletem pessoas reais..." },
+      { inicial: "🕹️ Jogando adivinhação com fluxos...", apagarAte: "🕹️ Jogando", final: " cenários bem mapeados..." },
+      { inicial: "⏳ Esperando o loading eterno...", apagarAte: "⏳ Esperando", final: " respostas rápidas e claras..." },
+      { inicial: "🌪️ Criando caos na navegação...", apagarAte: "🌪️ Criando", final: " experiências simples e organizadas..." },
+      { inicial: "📦 Entregando caixas vazias...", apagarAte: "📦 Entregando", final: " valor real ao usuário..." },
+      { inicial: "📺 Assistindo tela congelar...", apagarAte: "📺 Assistindo", final: " interfaces fluidas e rápidas..." }
+    ];
+
+    /* 🔧 Typewriter robusto */
+    let digitando = false;
+    let nextPhraseTimeout = null;
+    function mountTypewriter(el) {
+      let text = el.querySelector(".tw-text");
+      let cursor = el.querySelector(".tw-cursor");
+      if (!text) { text = document.createElement("span"); text.className = "tw-text"; el.textContent = ""; el.appendChild(text); }
+      if (!cursor) { cursor = document.createElement("span"); cursor.className = "tw-cursor"; cursor.textContent = "|"; el.appendChild(cursor); }
+    }
+    function twSet(el, text){ const t = el.querySelector(".tw-text"); if (t) t.textContent = text; }
+    function twGet(el){ const t = el.querySelector(".tw-text"); return t ? t.textContent : ""; }
+
+    function typewriterComplexa(el, frase, done){
+      if (digitando) return;
+      mountTypewriter(el);
+      const { inicial, apagarAte, final } = frase;
+      twSet(el,""); let i=0, speed=45; digitando=true;
+      (function typeInicial(){ if (!digitando) return;
+        if (i<inicial.length){ twSet(el, twGet(el)+inicial[i++]); setTimeout(typeInicial, speed); }
+        else { setTimeout(apagar, 3000); } })();
+      function apagar(){ if (!digitando) return;
+        const alvo=(apagarAte&&inicial.includes(apagarAte))?apagarAte:inicial;
+        if (twGet(el)!==alvo){ twSet(el, twGet(el).slice(0,-1)); setTimeout(apagar,25); }
+        else { i=0; setTimeout(typeFinal,500); } }
+      function typeFinal(){ if (!digitando) return;
+        if (i<final.length){ twSet(el, twGet(el)+final[i++]); setTimeout(typeFinal, speed); }
+        else { digitando=false; done&&done(); } }
+    }
+    function typewriterEffectRandom(el, done){
+      if (digitando) return;
+      const end = () => { if (typeof done === "function") done(); };
+      const f = frasesComplexas[Math.floor(Math.random()*frasesComplexas.length)];
+      return typewriterComplexa(el, f, end);
+    }
+    function scheduleNext(el){
+      clearTimeout(nextPhraseTimeout);
+      nextPhraseTimeout = setTimeout(()=>{
+        if (!isLoading || digitando) return;
+        typewriterEffectRandom(el, ()=>scheduleNext(el));
+      },1600);
+    }
+    let isLoading=false;
+    function toggleLoading(show){
+      const overlay=document.getElementById("loading-overlay");
+      const text=document.querySelector(".loading-text");
+      if(show){
+        if(isLoading) return; isLoading=true; overlay.style.display="flex";
+        mountTypewriter(text); twSet(text,""); clearTimeout(nextPhraseTimeout);
+        digitando=false;
+        setTimeout(()=>{ if(!isLoading) return; typewriterEffectRandom(text, ()=>scheduleNext(text)); },50);
+      }else{
+        if(!isLoading) return; isLoading=false; clearTimeout(nextPhraseTimeout);
+        digitando=false; twSet(text,""); overlay.style.display="none";
+      }
+    }
+
+    const animation=lottie.loadAnimation({
+      container:document.getElementById("loading"), renderer:"svg", loop:true, autoplay:true,
+      path:"https://lottie.host/639903f6-068d-4fd3-855f-077767682dd9/FoFs0mYDUj.json"
+    });
+
+    // Toggle (olho aberto/fechado) para visibilidade dos cards
+    (function(){
+      const btn = document.getElementById("toggleHeuristica");
+      if (!btn) return;
+      const countPill = document.getElementById("toggleHeuristicaCount");
+      let visible = true; // Estado inicial será atualizado pela detecção automática
+      
+      // Expõe o estado para ser atualizado pela detecção automática
+      window.toggleHeuristicaState = { visible };
+      
+      const render = ()=>{
+        btn.dataset.state = visible ? "on" : "off";
+        btn.setAttribute("aria-pressed", String(visible));
+        btn.title = visible ? "Ocultar cards" : "Mostrar cards";
+        };
+      
+      // Estado inicial será definido pela detecção automática
+      // render(); // Removido - será chamado pela updateCardsVisibilityState
+      
+      btn.addEventListener("click", ()=>{
+        visible = !visible; 
+        render();
+        parent.postMessage({ pluginMessage:{ type:"setHeuristicaVisibility", visible } }, "*");
+      });
+
+      // Dropdown -> "Apagar todos os cards…"
+      const openModalBtn = document.getElementById("btnApagarTodosCards");
+      const modalEl = document.getElementById("confirmApagarCardsModal");
+      const confirmBtn = document.getElementById("confirmApagarCards");
+      let modal;
+      if (modalEl) modal = new bootstrap.Modal(modalEl);
+
+if (openModalBtn) openModalBtn.addEventListener("click", function(){ if (modal) modal.show(); });
+
+
+if (confirmBtn) confirmBtn.addEventListener("click", function(){
+  parent.postMessage({ pluginMessage:{ type:"deleteAllHeuristicaCards" } }, "*");
+  if (modal) modal.hide();
+  showToast("Todos os cards foram solicitados para remoção.", "success", 5000);
+  updateCardsCount(0);
+});
+
+    })(); 
+    /* ========= Ações ========= */
+    document.getElementById("analisarBtn").addEventListener("click", ()=>{
+      hideMensagem();
+      const badge = document.getElementById("selBadge");
+      const selecionados = badge ? parseInt(badge.textContent) || 0 : 0;
+
+      if (selecionados === 0) {
+        //showErro("Selecione pelo menos uma tela.");
+        showToast("Selecione uma ou mais telas.", "danger", 5000);
+        return;
+      }
+      const metodo=document.getElementById("metodo").value;
+      const descricao=document.getElementById("descricao").value;
+      __loadingTimer=setTimeout(()=>{ try{toggleLoading(true);animation.goToAndPlay(0,true);}catch(e){} }, 200);
+      parent.postMessage({ pluginMessage:{ type:"analisar", metodo, descricao } }, "*");
+    });
+
+    /* ========= Benchmark Multi-IA ========= */
+    function setBenchmarkSelectionCount(n){
+      const badge = document.getElementById("benchmark-selBadge");
+      if (badge) badge.textContent = `${n} Tela${n < 2 ? "" : "s"} selecionada${n < 2 ? "" : "s"}`;
+    }
+
+    document.getElementById("benchmarkBtn").addEventListener("click", ()=>{
+      const badge = document.getElementById("benchmark-selBadge");
+      const selecionados = badge ? parseInt(badge.textContent) || 0 : 0;
+
+      if (selecionados === 0) {
+        showToast("Selecione pelo menos uma tela para o Bench AI.", "danger", 5000);
+        return;
+      }
+
+      const categoria = "free"; // Sempre usar modelos gratuitos
+      const testType = "layout-analysis"; // Sempre usar análise de layout
+      
+      __loadingTimer = setTimeout(()=>{ 
+        try{toggleLoading(true);animation.goToAndPlay(0,true);}catch(e){} 
+      }, 200);
+      
+      parent.postMessage({ 
+        pluginMessage:{ 
+          type:"benchmark-multi-ai", 
+          categoria, 
+          testType 
+        } 
+      }, "*");
+    });
+
+    function showBenchmarkResults(data) {
+      const resultsDiv = document.getElementById("benchmark-results");
+      const statsDiv = document.getElementById("benchmark-stats");
+      const rankingDiv = document.getElementById("benchmark-ranking");
+      
+      if (!resultsDiv || !statsDiv || !rankingDiv) return;
+
+      // Mostrar seção de resultados
+      resultsDiv.style.display = "block";
+
+      // Estatísticas gerais
+      if (data.stats) {
+        statsDiv.innerHTML = `
+          <div class="col-md-3">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <h6 class="card-title">⚡ Latência Média</h6>
+                <h4 class="text-primary">${data.stats.averageLatency}ms</h4>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <h6 class="card-title">📊 Score Médio</h6>
+                <h4 class="text-success">${data.stats.averageScore}/100</h4>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <h6 class="card-title">🏆 Melhor Modelo</h6>
+                <h5 class="text-warning">${data.stats.bestModel}</h5>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <h6 class="card-title">⚡ Mais Rápido</h6>
+                <h5 class="text-info">${data.stats.fastestModel}</h5>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Cards individuais para cada modelo
+      rankingDiv.innerHTML = "";
+      if (data.results && Array.isArray(data.results)) {
+        const successfulResults = data.results.filter(r => !r.error).sort((a, b) => b.evaluation.score - a.evaluation.score);
+        
+        successfulResults.forEach((result, index) => {
+          const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+          const gradeColor = result.evaluation.grade === 'A+' ? 'text-success' : 
+                            result.evaluation.grade === 'A' ? 'text-success' : 
+                            result.evaluation.grade === 'B+' ? 'text-warning' : 'text-secondary';
+          
+          // Criar card individual para cada modelo
+          const card = document.createElement("div");
+          card.className = "card mb-3";
+          card.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0 fw-semibold">${medal} ${result.model}</h6>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary">${result.provider}</span>
+                <span class="badge bg-success">${result.cost}</span>
+                <span class="badge ${gradeColor.replace('text-', 'bg-')}">${result.evaluation.score}/100</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- Métricas de Performance -->
+              <div class="row mb-3">
+                <div class="col-md-3">
+                  <div class="text-center">
+                    <h6 class="text-primary mb-1">⚡ Latência</h6>
+                    <h5 class="mb-0">${result.latency}ms</h5>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="text-center">
+                    <h6 class="text-info mb-1">📝 Palavras</h6>
+                    <h5 class="mb-0">${result.evaluation.wordCount}</h5>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="text-center">
+                    <h6 class="text-warning mb-1">🔧 Termos UX</h6>
+                    <h5 class="mb-0">${result.evaluation.hasUXTerms}</h5>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="text-center">
+                    <h6 class="text-secondary mb-1">📋 Estrutura</h6>
+                    <h5 class="mb-0">${result.evaluation.hasStructure ? '✅' : '❌'}</h5>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Resposta Completa -->
+              <div class="border-top pt-3">
+                <h6 class="fw-semibold mb-2">📄 Análise Completa:</h6>
+                <div class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+                  <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9em;">${result.response}</pre>
+                </div>
+              </div>
+            </div>
+          `;
+          rankingDiv.appendChild(card);
+        });
+      }
+    }
+
+    // depois
+    const voltarBtn = document.getElementById("voltarBtn");
+    if (voltarBtn) voltarBtn.addEventListener("click", ()=>{ showScreen("form-screen"); });
+
+    /* ========= Severidade: helpers ========= */
+    function norm(v){ return String(v||"").normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase().trim(); }
+    function mapSevKey(v){
+      const s = norm(v); if (!s) return null;
+      if (/\b(positivo|positiva|positive)\b/.test(s)) return "positivo";
+      if (/\b(baixo|baixa|leve)\b/.test(s)) return "baixo";
+      if (/\b(medio|media|moderad[ao])\b/.test(s)) return "medio";
+      if (/\b(alto|alta|critica?|critico|severa?|grave)\b/.test(s) && !/\balta\s+fidelidade\b/.test(s)) return "alto";
+      return null;
+    }
+
+    /* ======= Filtro de Severidade (Resumo) ======= */
+let resumoFilter = { alto:true, medio:true, baixo:true, positivo:true };
+function renderSevFilterUI(){
+  const root = document.getElementById("sevFilter"); if (!root) return;
+  [...root.querySelectorAll('.sev-badge')].forEach(btn=>{
+    const key = btn.getAttribute('data-sev');
+    const on = !!resumoFilter[key];
+    btn.classList.toggle('off', !on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+  applyResumoFilter();
+}
+function applyResumoFilter(){
+  const list = document.getElementById('summary-list-side'); if (!list) return;
+  list.querySelectorAll('.issue').forEach(row=>{
+    const k = row.getAttribute('data-sev');
+    const show = !k || resumoFilter[k] !== false;
+    row.style.display = show ? '' : 'none';
+  });
+}
+function setupSevFilter(){
+  const root = document.getElementById('sevFilter');
+  if (!root) return;
+  root.addEventListener('click', (e)=>{
+    const b = e.target.closest('.sev-badge'); if (!b) return;
+    const key = b.getAttribute('data-sev'); if (!key) return;
+    resumoFilter[key] = !resumoFilter[key];
+    renderSevFilterUI();
+  });
+  renderSevFilterUI();
+}
+
+/* ======= Resumo ======= */
+    function flattenAnalises(list) {
+      const out = [];
+      (list || []).forEach(item => { if (Array.isArray(item?.cards)) out.push(...item.cards); else out.push(item); });
+      return out;
+    }
+    function updateResumoFromAnalises(rawList, ids = {
+      total: "total-cards", alto: "qtd-alto", medio: "qtd-medio", baixo: "qtd-baixo", positivo: "qtd-positivo",
+    }) {
+      const analises = flattenAnalises(rawList);
+      const totals = { alto: 0, medio: 0, baixo: 0, positivo: 0 };
+      analises.forEach((c) => { const k = c?.sevKey || null; if (k && Object.prototype.hasOwnProperty.call(totals, k)) totals[k]++; });
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
+      set(ids.total, analises.length); set(ids.alto, totals.alto); set(ids.medio, totals.medio); set(ids.baixo, totals.baixo); set(ids.positivo, totals.positivo);
+    }
+    function getSeveridadeKey(card){
+      if (card?.sevKey) return card.sevKey;
+      const campo = card?.severidade || card?.severidadeRaw || card?.sev || card?.nivel || card?.gravidade;
+      const k1 = mapSevKey(campo); if (k1) return k1;
+      const t = card?.analise || "";
+      const m = t.match(/(?:^|\n)\s*7\s*-\s*Severidade[^\n:]*[: ]+([^\n]+)/i);
+      const k2 = mapSevKey(m && m[1]); if (k2) return k2;
+      return mapSevKey(t);
+    }
+
+    // Detecta a heurística dentro do texto com tolerância (fuzzy)
+    function detectarHeuristicaNoTexto(texto, metodo='nielsen'){
+      const repo = (heuristicasLinks && heuristicasLinks[metodo]) || {};
+      const t = String(texto||'');
+
+      // 1) Linha explícita: "Heurística: Nome"
+      const m = t.match(/Heur[ií]stica\s*[:\-]\s*([^\n]+)/i);
+      if (m && m[1]) {
+        const nome = m[1].trim();
+        const link = buscaLink(repo, nome);
+        if (link) return { nome, link };
+      }
+
+      // helpers p/ fuzzy
+      const tokenize = (s)=> normKey(s).split(' ').filter(w=>w && w.length>2);
+      const jaccard = (a,b)=>{
+        const A=new Set(tokenize(a)), B=new Set(tokenize(b));
+        const inter=[...A].filter(x=>B.has(x)).length; const uni=new Set([...A,...B]).size;
+        return uni ? inter/uni : 0;
+      };
+
+      // 2) includes (ambas direções)
+      const nt = normKey(t);
+      for (const k of Object.keys(repo)) {
+        const nk = normKey(k);
+        if (nt.includes(nk) || nk.includes(nt)) return { nome:k, link:repo[k] };
+      }
+
+      // 3) Fuzzy por similaridade de tokens (também linha a linha)
+      const linhas = [t, ...String(t).split(/\n+/g)];
+      let best={ nome:null, link:'', score:0 };
+      for (const k of Object.keys(repo)) {
+        for (const part of linhas) {
+          const sc = jaccard(k, part);
+          if (sc>best.score) best={ nome:k, link:repo[k], score:sc };
+        }
+      }
+      if (best.score>=0.55) return { nome: best.nome, link: best.link };
+
+      return { nome: null, link: '' };
+    }
+
+    function normKey(s){ return String(s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().replace(/\s+/g,' ').trim(); }
+
+    function buscaLink(repo, titulo){
+      const w = normKey(titulo);
+      for (const k of Object.keys(repo||{})) if (normKey(k) === w) return repo[k];
+      for (const k of Object.keys(repo||{})) {
+        const nk = normKey(k);
+        if (nk.includes(w) || w.includes(nk)) return repo[k];
+      }
+      return '';
+    }
+
+    function coletarCardsDoLayout(item){
+      const cards = [];
+      if (item?.analise) cards.push(item);
+      if (Array.isArray(item?.cards)) cards.push(...item.cards);
+      if (Array.isArray(item?.analises)) cards.push(...item.analises);
+      if (Array.isArray(item) && item.length) cards.push(...item);
+      return cards;
+    }
+
+    function showErro(texto) {
+      const el = document.getElementById("mensagem-erro");
+      if (!el) return;
+      const clean = String(texto || "Algo deu errado.").replace(/^\s*[⚠️❌]\s*/, "");
+      el.innerHTML = `<span class="me-2" aria-hidden="true">
+        <svg width="61" height="54" viewBox="0 0 61 54" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;">
+        <path d="M26.3056 4.80496L3.27263 44.2902C1.60599 47.147 3.66687 50.7355 6.97454 50.7355H53.0405C56.3482 50.7355 58.4092 47.147 56.7425 44.2902L33.7095 4.805C32.0557 1.96996 27.9594 1.96996 26.3056 4.80496Z" fill="#F8D7DA"/>
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M28.6196 6.15449C29.2397 5.09138 30.7758 5.09134 31.396 6.15449L54.429 45.6397C55.0539 46.7111 54.2812 48.0564 53.0409 48.0564H6.97478C5.73441 48.0564 4.96157 46.7111 5.58655 45.6397L28.6196 6.15449ZM36.0234 3.45518C33.336 -1.15172 26.6796 -1.15174 23.9922 3.45518L0.959172 42.9405C-1.74913 47.5833 1.59981 53.4135 6.97478 53.4135H53.0409C58.4156 53.4135 61.7645 47.5833 59.0563 42.9405L36.0234 3.45518ZM33.2219 15.5252C33.2219 13.75 31.7828 12.3109 30.0076 12.3109C28.2324 12.3109 26.7933 13.75 26.7933 15.5252V29.4538C26.7933 31.229 28.2324 32.6681 30.0076 32.6681C31.7828 32.6681 33.2219 31.229 33.2219 29.4538V15.5252ZM25.7219 41.2395C25.7219 43.6065 27.6406 45.5252 30.0076 45.5252C32.3745 45.5252 34.2933 43.6065 34.2933 41.2395C34.2933 38.8725 32.3745 36.9537 30.0076 36.9537C27.6406 36.9537 25.7219 38.8725 25.7219 41.2395Z" fill="#EE5564"/></svg></span><span class="mensagem-erro-texto"></span>`;
+      const span = el.querySelector(".mensagem-erro-texto");
+      if (span) span.textContent = clean;
+      el.classList.remove("d-none");
+      try { toggleLoading(false); } catch (e) {}
+    }
+
+function showToast(texto, variant = "danger", delay = 3000){
+  const zone = document.getElementById("toastZone"); 
+  if(!zone) return;
+
+  // não empilha
+  zone.querySelectorAll('.toast').forEach(n=>n.remove());
+
+  const el = document.createElement("div");
+  el.className = `toast align-items-center text-bg-${variant} border-0 animate__animated`;
+  el.setAttribute("role","alert"); 
+  el.setAttribute("aria-live","assertive"); 
+  el.setAttribute("aria-atomic","true");
+  el.innerHTML = `<div class="d-flex">
+    <div class="toast-body">${texto}</div>
+    <button type="button" class="btn-close btn-close-white me-2 m-auto" aria-label="Close"></button>
+  </div>`;
+
+  zone.appendChild(el);
+
+  // Anima ENTRADA
+  el.classList.add('show', 'animate__bounceInLeft');
+
+  // fechar manual
+  const closeBtn = el.querySelector('.btn-close');
+  const hide = ()=>{
+    el.classList.remove("animate__bounceInLeft");
+    el.classList.add("animate__bounceOutLeft");
+    el.addEventListener("animationend", ()=> el.remove(), { once:true });
+  };
+  closeBtn?.addEventListener("click", hide);
+
+  // autohide
+  setTimeout(hide, delay);
+}
+
+
+
+
+
+    /* ========= Mensagens do plugin ========= */
+    let __loadingTimer = null;
+    window.onmessage = async (event) => {
+      if (__loadingTimer) { clearTimeout(__loadingTimer); __loadingTimer = null; }
+      const msg = event?.data?.pluginMessage;
+      if (!msg) return;
+
+      // 👉 Atualização do contador em tempo real
+      if (msg.type === "selectionCount") {
+        setSelectionCount(Number(msg.count || 0));
+        setBenchmarkSelectionCount(Number(msg.count || 0));
+        return; // só atualiza o badge
+      }
+
+      if (typeof msg.carregando === "boolean") toggleLoading(msg.carregando);
+
+      if (msg.erro || msg.error) {
+        showErro(String(msg.erro || msg.error));
+        return;
+      }
+
+      // 👉 Processar resultados do benchmark
+      if (msg.tipo === "benchmark-multi-ai" && msg.benchmarkResults) {
+        showBenchmarkResults(msg.benchmarkResults);
+        toggleLoading(false);
+        return;
+      }
+
+      let payload = null;
+      if (Array.isArray(msg)) payload = msg;
+      else if (Array.isArray(msg.analises)) payload = msg.analises;
+      else if (msg.resultado) payload = [{ analise: String(msg.resultado) }];
+      else if (msg.layout || msg.cards) payload = [msg];
+
+      try {
+        if (payload) {
+          await linksReady;
+          updateResumoFromAnalises(payload);
+          showResumo(payload, "summary-list-side"); setupSevFilter();
+          const btnResumo = document.getElementById("btnResumo");
+          if (btnResumo) btnResumo.disabled = false;
+          const oc = new bootstrap.Offcanvas(document.getElementById('offResumo'));
+          oc.show();
+          requestCardsCount(); // ✅ atualiza o contador após os cards serem criados
+        }
+      } finally {
+        if (payload) toggleLoading(false);
+      }
+    };
+
+    
+
+    /* ========= Render do resumo ========= */
+    function showResumo(analises, containerId = "summary-list"){
+      toggleLoading(false);
+      const layouts = Array.isArray(analises) ? analises : [analises];
+      const listEl = document.getElementById(containerId);
+      if (!listEl) return;
+      listEl.innerHTML = "";
+      const placeholder = listEl.querySelector(".text-muted");
+      if (placeholder) placeholder.remove();
+
+      layouts.forEach((layoutItem, idx) => {
+        // Coleta todos os cards/achados deste layout
+        const cards = (function coletar(item){
+          const arr=[];
+          if (item?.analise) arr.push(item);
+          if (Array.isArray(item?.cards)) arr.push(...item.cards);
+          if (Array.isArray(item?.analises)) arr.push(...item.analises);
+          if (Array.isArray(item)) arr.push(...item);
+          return arr;
+        })(layoutItem);
+
+        // Cabeçalho: nome do frame
+        const nome = layoutItem?.nome || layoutItem?.layout || `Layout ${String(idx + 1).padStart(2,"0")}`;
+
+        const cardEl = document.createElement("div");
+        cardEl.className = "summary-card p-3";
+
+        const titulo = document.createElement("div");
+        titulo.className = "summary-title";
+        titulo.innerHTML = `<h6 class="m-0">${nome}</h6>`;
+
+        // Lista de achados: "2 - Título do card" * severidade * ícone
+        const issues = document.createElement("div"); 
+        issues.className = "issues mt-2";
+
+        cards.forEach(c => {
+          const line = document.createElement("div"); 
+          line.className = "issue";
+
+          const t = document.createElement("span"); 
+          t.className = "title"; 
+          t.textContent = getTituloFromTwo(c);
+
+          const k = (function(){
+            if (c?.sevKey) return c.sevKey;
+            const campo = c?.severidade || c?.severidadeRaw || c?.sev || c?.nivel || c?.gravidade;
+            const s = (function(v){ return String(v||"").normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase().trim(); })(campo);
+            if (/\b(positivo|positiva|positive)\b/.test(s)) return "positivo";
+            if (/\b(baixo|baixa|leve)\b/.test(s)) return "baixo";
+            if (/\b(medio|media|moderad[ao])\b/.test(s)) return "medio";
+            if (/\b(alto|alta|critica?|critico|severa?|grave)\b/.test(s) && !/\balta\s+fidelidade\b/.test(s)) return "alto";
+            const tt = String(c?.analise || "");
+            const m = tt.match(/(?:^|\n)\s*6\s*-\s*Severidade[^\n:]*[: ]+([^\n]+)/i);
+            if (m && m[1]) {
+              const ss = String(m[1]).normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase();
+              if (/\b(positivo|positiva|positive)\b/.test(ss)) return "positivo";
+              if (/\b(baixo|baixa|leve)\b/.test(ss)) return "baixo";
+              if (/\b(medio|media|moderad[ao])\b/.test(ss)) return "medio";
+              if (/\b(alto|alta|critica?|critico|severa?|grave)\b/.test(ss) && !/\balta\s+fidelidade\b/.test(ss)) return "alto";
+            }
+            return "medio";
+          })();
+
+          const sev = document.createElement("span");
+      sev.className = "sev-text";
+      const label = ({alto:"alto", medio:"médio", baixo:"baixo", positivo:"positivo"}[k] || k);
+      sev.textContent = " " + String(label);
+      line.dataset.sev = k; /* usado pelo filtro */
+      line.append(t, sev);
+      const id = c.nodeId || c.node_id || c.targetNodeId || (c.target && (c.target.id || c.target.nodeId)) || c.targetId || c.frameId || c.id || "";
+          if (id) {
+            const btn = document.createElement("button");
+            line.dataset.nodeid = id; 
+            line.classList.add("clickable"); 
+            btn.className = "loc"; btn.dataset.nodeid = id; btn.setAttribute("title","Localizar no layout");
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1 7.99972C1 4.13389 4.13389 1 7.99972 1C11.8655 1 14.9994 4.13389 14.9994 7.99972C14.9994 11.8655 11.8655 14.9994 7.99972 14.9994C4.13389 14.9994 1 11.8655 1 7.99972Z" fill="#C5C5C5"/>
+              <path d="M1 7.99972C1 4.13389 4.13389 1 7.99972 1C11.8655 1 14.9994 4.13389 14.9994 7.99972C14.9994 11.8655 11.8655 14.9994 7.99972 14.9994C4.13389 14.9994 1 11.8655 1 7.99972Z" stroke="#4C4D60" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 1V2.86659" stroke="#4C4D60" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M15.0003 8H13.1338" stroke="#4C4D60" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 15.0003V13.1338" stroke="#4C4D60" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M1 8H2.86659" stroke="#4C4D60" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6.16699 8H9.83247" stroke="#4C4D60" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 6.16699V9.83247" stroke="#4C4D60" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>`;
+            line.appendChild(btn);
+          }
+          issues.appendChild(line);
+        });
+        cardEl.appendChild(titulo);
+        cardEl.appendChild(issues);
+        listEl.appendChild(cardEl);
+      });
+      applyResumoFilter();
+    }
+
+    // delegação de clique:
+  document.getElementById("summary-list-side").addEventListener("click",(e)=>{
+    const btn = e.target.closest(".loc");
+    const row = e.target.closest(".issue[data-nodeid]");
+    const nodeId = (btn && btn.dataset.nodeid) || (row && row.dataset.nodeid);
+    if (!nodeId) return;
+    parent.postMessage({ pluginMessage:{ type:"focusNode", nodeId } }, "*");
+  });
+
+  function requestCardsCount(){
+  parent.postMessage({ pluginMessage:{ type:"getCardsCount" } }, "*");
+  }
+  
+  function requestCardsVisibilityState(){
+    parent.postMessage({ pluginMessage:{ type:"getCardsVisibilityState" } }, "*");
+  }
+  
+  function updateCardsCount(n){
+    const lab = document.getElementById("toggleHeuristicaLabel");
+    if (lab) lab.textContent = (n == 1 ? "card" : "cards");
+    const el = document.getElementById("cardsCountBadge");
+    if (el) el.textContent = String(n);
+    const pill = document.getElementById("toggleHeuristicaCount");
+    if (pill) pill.textContent = String(n);
+  }
+  
+  function updateCardsVisibilityState(allVisible, count) {
+    const btn = document.getElementById("toggleHeuristica");
+    if (!btn) return;
+    
+    // Atualiza o estado do botão baseado na visibilidade real dos cards
+    btn.dataset.state = allVisible ? "on" : "off";
+    btn.setAttribute("aria-pressed", String(allVisible));
+    btn.title = allVisible ? "Ocultar cards" : "Mostrar cards";
+    
+    // Atualiza a variável local do toggle
+    if (window.toggleHeuristicaState) {
+      window.toggleHeuristicaState.visible = allVisible;
+    }
+    
+    // Atualiza o contador de cards ao lado do olho
+    updateCardsCount(count);
+  }
+
+  // receber do plugin
+  window.addEventListener("message", function (event) {
+    const msg = event.data && (event.data.pluginMessage || event.data);
+    if (msg && msg.type === "cardsCount") { updateCardsCount(msg.count); return; }
+    if (msg && msg.type === "cardsVisibilityState") { 
+      updateCardsVisibilityState(msg.allVisible, msg.count); 
+      return; 
+    }
+  });
+
+  // chamar no load e também após alternar olho
+  const oc = new bootstrap.Offcanvas(document.getElementById('offResumo'));
+  oc.show();
+  requestCardsVisibilityState(); // 🔄 detecta o estado real dos cards ao abrir
+
+
+    // Ícone: foca o componente analisado no Figma
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest?.(".loc");
+      if (!b) return;
+      const container = document.getElementById("summary-list-side");
+      if (container && container.contains(b)){
+        parent.postMessage({ pluginMessage:{ type:"focusNode", nodeId:b.dataset.nodeid } }, "*");
+      }
+    });
+
+    /* (opcional) render dos cards no plugin */
+    function showMensagem(analises){
+      const container=document.getElementById("analises");
+      if(!container) return; container.style.display="block";
+      container.innerHTML=""; if(!Array.isArray(analises)) analises=[analises];
+      analises.forEach((item)=>{
+        const wrapper=document.createElement("div");
+        wrapper.className = "d-flex align-items-start gap-3 mb-4";
+        const imagem=document.createElement("img");
+        imagem.src=item.imagemBase64||""; imagem.alt="Imagem analisada";
+        const card=document.createElement("div");
+        card.className = "bg-light p-3 rounded-3 flex-fill";
+        card.style.whiteSpace="pre-wrap";
+        const sevKey = getSeveridadeKey(item);
+        const regex=/(\d+)\s*-\s*(.*?)(?=\n\d+\s*-|$)/gs;
+        const partes=Array.from((item.analise||"").matchAll(regex));
+        partes.forEach(([,numero,conteudo])=>{
+           // Se for POSITIVO, não renderiza "Sugestão de melhoria"
+          if (sevKey && /positiv/.test(sevKey) && isSugestaoDeMelhoria(numero, conteudo)) {
+            return;
+          }
+          const bloco=document.createElement("div");
+          bloco.className = "mb-2";
+          bloco.innerHTML=`<strong>${numero} -</strong> ${conteudo.trim()}`;
+          card.appendChild(bloco);
+        });
+        wrapper.appendChild(imagem); wrapper.appendChild(card); container.appendChild(wrapper);
+      });
+    }
+  </script>
+  </body>
+</html>

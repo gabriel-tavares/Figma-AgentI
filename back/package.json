@@ -1,0 +1,22 @@
+{
+  "name": "ux-analisador",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:models": "node test-models.js",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "index.js": "^0.0.3",
+    "node-fetch": "^2.7.0",
+    "probe-image-size": "^7.2.3"
+  },
+  "description": ""
+}

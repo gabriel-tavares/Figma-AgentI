@@ -1,0 +1,54 @@
+# ===========================================
+# FIGMA-AGENTI - DOCKER COMPOSE DEV
+# ===========================================
+
+version: '3.8'
+
+services:
+  # Serviço para desenvolvimento local
+  figma-agenti-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: figma-agenti-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    env_file:
+      - .env
+    volumes:
+      # Volume para código fonte (hot reload)
+      - .:/app
+      - /app/node_modules
+      # Volume para logs
+      - ./logs:/app/logs
+      # Volume para arquivos temporários
+      - ./temp:/app/temp
+      # Volume para debug
+      - ./debug:/app/debug
+    networks:
+      - figma-agenti-dev-network
+    # Comando para desenvolvimento
+    command: ["npm", "run", "dev"]
+    # Limites mais baixos para dev
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+networks:
+  figma-agenti-dev-network:
+    driver: bridge
+    name: figma-agenti-dev-network
+
+volumes:
+  logs:
+    driver: local
+  temp:
+    driver: local
+  debug:
+    driver: local
