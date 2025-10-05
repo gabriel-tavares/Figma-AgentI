@@ -58,11 +58,19 @@ Heuristica/
 # APIs
 OPENAI_API_KEY=sk-proj-...
 OPENROUTER_API_KEY=sk-or-v1-...
-VECTOR_STORE_ID=vs_...
+VECTOR_STORE_ID=vs_6893c02afcb081918c69241839c8ca54
+
+# Sistema
+USE_RESPONSES=true             # Ativa análise heurística
+USE_RAG=true                   # Ativa busca em documentos
+LOG_LEVEL=info                 # Nível de logs (error|warn|info|debug)
+DEBUG_FILES_RETENTION_DAYS=7   # Dias para manter arquivos debug
 
 # Modelos IA
 MODELO_VISION=gpt-4o-mini      # TIER 2: 2.5M tokens/dia
 MODELO_TEXTO=gpt-5-mini        # TIER 1: 250k tokens/dia
+MAX_TOKENS_VISION=4096         # Tokens máx Vision
+MAX_TOKENS_TEXTO=50000         # Tokens máx análise
 
 # Configurações
 CORS_ORIGIN=https://www.figma.com
@@ -138,17 +146,52 @@ Seleção Frames → Processamento Híbrido → Análise IA → Cards Visuais
 
 ## 🎯 Contexto de Conversas Anteriores
 
-### Deploy Automático
-- Configuração completa do EasyPanel
-- Otimização do Dockerfile
-- Health checks e monitoring
-- Gestão de recursos e limites
+### Deploy Automático e Infraestrutura
+- **EasyPanel configurado** com deploy manual otimizado
+- **Docker otimizado** com multi-stage build e cache de layers
+- **Health checks** corrigidos (não gastam mais API da OpenAI)
+- **Usuário não-root** mantido para segurança
+- **Permissões resolvidas** com fallback inteligente `/tmp`
 
-### Melhorias Implementadas
-- Sistema de fallback inteligente
-- Cache de layers Docker
-- Usuário não-root para segurança
-- Variáveis de ambiente embarcadas
+### Sistema de Logs e Monitoramento
+- **Sistema de logging padronizado** com níveis (error, warn, info, debug)
+- **LOG_LEVEL configurável** via variável de ambiente
+- **Remoção de logs verbosos** que poluíam o console
+- **Logs estruturados** para melhor debugging
+- **Limpeza automática** de arquivos temporários (7 dias configurável)
+
+### Otimizações de Performance
+- **Limpeza automática** executada na inicialização e a cada 6 horas
+- **Fallback inteligente** para salvamento de arquivos (tenta `/tmp` depois `/app/temp`)
+- **Healthcheck otimizado** usando `wget` em vez de chamadas da API
+- **Remoção de código legado** (Assistants API removida completamente)
+
+### Correções de Configuração
+- **Variáveis de ambiente corrigidas**: `MAX_TOKENS_*` em vez de `MAXTOK_*`
+- **RAG ativado corretamente** com `USE_RAG=true` + `VECTOR_STORE_ID`
+- **Remoção de ASSISTANT_ID** e todo código relacionado aos Assistants
+- **Configurações embarcadas** no Dockerfile para produção
+
+### Melhorias de Segurança
+- **Execução como usuário não-root** mantida (nodejs:nodejs)
+- **Permissões mínimas necessárias** em vez de 777 global
+- **Fallback seguro** quando não consegue escrever arquivos
+- **Variáveis sensíveis** protegidas no Docker
+
+### Sistema de Arquivo e Persistência
+- **Múltiplos diretórios temporários** com fallback automático
+- **Teste de escrita** antes de usar diretório
+- **Limpeza por idade** de arquivos de debug (configurável)
+- **Logs informativos** sobre fallbacks e erros
+
+### Status Atual do Sistema
+- **✅ Sistema 100% funcional** com todas as correções aplicadas
+- **✅ RAG ativado** e funcionando (`vs_6893c02afcb081918c69241839c8ca54`)
+- **✅ Permissões resolvidas** - sem mais erros EACCES
+- **✅ Variáveis de ambiente** lidas corretamente do EasyPanel
+- **✅ Performance otimizada** - análises completas em ~90s
+- **✅ Tokens configurados** - 50,000 tokens máx para análise
+- **✅ Segurança mantida** - usuário não-root preservado
 
 ## 📝 Notas Importantes
 
@@ -160,6 +203,7 @@ Seleção Frames → Processamento Híbrido → Análise IA → Cards Visuais
 
 ---
 
-**Última atualização**: Outubro 2025
-**Versão do sistema**: 1.0.0
+**Última atualização**: Outubro 2025  
+**Versão do sistema**: 1.0.0  
+**Status**: ✅ Totalmente funcional e otimizado
 
