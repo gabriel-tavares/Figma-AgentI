@@ -373,6 +373,23 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       
       if (result.output && Array.isArray(result.output) && result.output.length > 0) {
         logger.info(`🔄 Agente A: Output[0] keys: ${Object.keys(result.output[0]).join(', ')}`);
+        
+        // Debug detalhado do output[0]
+        if (result.output[0].type) {
+          logger.info(`🔄 Agente A: Output[0] type: ${result.output[0].type}`);
+        }
+        if (result.output[0].summary) {
+          logger.info(`🔄 Agente A: Output[0] summary: ${result.output[0].summary}`);
+        }
+        
+        // Verificar se existe output[1] com conteúdo
+        if (result.output.length > 1) {
+          logger.info(`🔄 Agente A: Output[1] keys: ${Object.keys(result.output[1]).join(', ')}`);
+          if (result.output[1].content) {
+            logger.info(`🔄 Agente A: Output[1] tem content!`);
+          }
+        }
+        
         if (result.output[0].content && Array.isArray(result.output[0].content)) {
           logger.info(`🔄 Agente A: Content length: ${result.output[0].content.length}`);
           if (result.output[0].content[0]) {
@@ -395,18 +412,23 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         logger.info(`🔄 Agente A: Content extraído via method 2: ${content.length} chars`);
       }
       // Método 3: result.text
-      else if (result.text) {
+      else if (result.text !== undefined) {
         content = result.text;
-        logger.info(`🔄 Agente A: Content extraído via method 3: ${content.length} chars`);
+        logger.info(`🔄 Agente A: Content extraído via method 3: ${typeof content} - ${content ? content.length : 'null/undefined'} chars`);
       }
       // Método 4: result.output[0].content[0].text (sem .value)
       else if (result.output?.[0]?.content?.[0]?.text) {
         content = result.output[0].content[0].text;
         logger.info(`🔄 Agente A: Content extraído via method 4: ${content.length} chars`);
       }
+      // Método 5: result.output[1].content[0].text.value (segundo item)
+      else if (result.output?.[1]?.content?.[0]?.text?.value) {
+        content = result.output[1].content[0].text.value;
+        logger.info(`🔄 Agente A: Content extraído via method 5: ${content.length} chars`);
+      }
       
       if (content) {
-        logger.info(`🔄 Agente A: Content preview: ${content.substring(0, 200)}...`);
+        logger.info(`🔄 Agente A: Content preview: ${typeof content === 'string' ? content.substring(0, 200) : JSON.stringify(content).substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
         return JSON.parse(cleanContent);
       } else {
