@@ -14,7 +14,9 @@
 figma.showUI(__html__, { width: 380, height: 385 });
 
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
-const API_URL = "https://api.uxday.com.br/analisar";
+// DESENVOLVIMENTO: usar localhost para testar mudanças no prompt
+const API_URL = "http://localhost:3000/analisar";
+// PRODUÇÃO: const API_URL = "https://api.uxday.com.br/analisar";
 
 // ===== Extração direta do Figma (bypass Vision quando for frame real) =====
 type FigmaSpec = any;
@@ -829,7 +831,9 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
       }
 
       // Chamada para benchmark multi-IA
-      const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
+      // DESENVOLVIMENTO: usar localhost
+      const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
+      // PRODUÇÃO: const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1258,23 +1262,23 @@ const linhas: string[] = parteSan
       contentCol.fills = [];
 
 
-      const headerRow = figma.createFrame();
-      headerRow.layoutMode = "HORIZONTAL";
-      headerRow.primaryAxisSizingMode = "FIXED"; // largura definida pelos filhos, mas...
-      headerRow.counterAxisSizingMode = "AUTO"; // altura = maior filho (71px do right)
-      headerRow.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-      headerRow.itemSpacing = 16;
-      headerRow.fills = [];
-      headerRow.resize(510, card.height);
+        const headerRow = figma.createFrame();
+        headerRow.layoutMode = "HORIZONTAL";
+        headerRow.primaryAxisSizingMode = "AUTO"; // Permite expansão automática
+        headerRow.counterAxisSizingMode = "AUTO"; // altura = maior filho (71px do right)
+        headerRow.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+        headerRow.itemSpacing = 16;
+        headerRow.fills = [];
+        // headerRow.resize(510, card.height); // Remover resize fixo
 
       const headerLeft = figma.createFrame();
       headerLeft.layoutMode = "VERTICAL";
-      headerLeft.primaryAxisSizingMode = "FIXED";
+      headerLeft.primaryAxisSizingMode = "AUTO"; // Permite expansão automática
       headerLeft.counterAxisSizingMode = "AUTO";
       headerLeft.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
       headerLeft.itemSpacing = 8;
       headerLeft.fills = [];
-      headerLeft.resize(410, card.height);
+      // headerLeft.resize(410, card.height); // Remover resize fixo
       
       // 1ª linha: Prefixo (ex.: [Constatação]) – sozinho
       const tagPrefixo = makeText(prefixo || "", "Bold", 20, palette.text);
@@ -1314,7 +1318,8 @@ const metodoNome =
 
 // cor correta é `subtle` (não existe `subtitle` no palette)
 const subtitleT = makeText(metodoNome, "Regular", 16, palette.subtle);
-subtitleT.textAutoResize = "HEIGHT";
+subtitleT.textAutoResize = "HEIGHT"; // Só altura, largura fixa
+subtitleT.resize(410, subtitleT.height); // Definir largura máxima
 
 // append no node certo
       const isConstatacao = norm(prefixo) === "constatacao";
