@@ -451,6 +451,102 @@ async function runAgentC(achadosA, achadosB, metodo) {
     return null;
   }
 }
+
+// Orquestrador Principal - Coordena A, B e C
+async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId, group) {
+  logger.info(`🎭 Orquestrador iniciado: ${group}`);
+  
+  const startTime = performance.now();
+  let achadosA = null, achadosB = null, achadosFinal = null;
+  
+  try {
+    // Executar Agente A e B em paralelo
+    logger.info(`   🔄 Executando Agente A (JSON) e B (Vision) em paralelo...`);
+    
+    const [resultA, resultB] = await Promise.allSettled([
+      runAgentA(figmaSpec, metodo, vectorStoreId),
+      imageBase64 ? runAgentB(imageBase64, metodo) : Promise.resolve(null)
+    ]);
+    
+    // Processar resultados do Agente A
+    if (resultA.status === 'fulfilled' && resultA.value) {
+      achadosA = resultA.value;
+      logger.info(`   ✅ Agente A: ${achadosA.achados?.length || 0} achados`);
+    } else {
+      logger.warn(`   ⚠️ Agente A falhou: ${resultA.reason?.message || 'erro desconhecido'}`);
+      achadosA = { achados: [] };
+    }
+    
+    // Processar resultados do Agente B
+    if (resultB.status === 'fulfilled' && resultB.value) {
+      achadosB = resultB.value;
+      logger.info(`   ✅ Agente B: ${achadosB.achados?.length || 0} achados`);
+    } else {
+      if (imageBase64) {
+        logger.warn(`   ⚠️ Agente B falhou: ${resultB.reason?.message || 'erro desconhecido'}`);
+      } else {
+        logger.info(`   ⏭️ Agente B: pulado (sem imagem)`);
+      }
+      achadosB = { achados: [] };
+    }
+    
+    // Validação leve antes do Reconciler
+    const totalAchados = (achadosA.achados?.length || 0) + (achadosB.achados?.length || 0);
+    if (totalAchados === 0) {
+      logger.warn(`   ⚠️ Nenhum achado dos agentes A e B - usando fallback`);
+      return {
+        achados: [{
+          constatacao_hipotese: "Hipótese",
+          titulo_card: "Análise não disponível",
+          heuristica_metodo: "Sistema — Geral",
+          descricao: "Não foi possível gerar análise com os agentes especializados. Tente novamente ou verifique a configuração.",
+          sugestao_melhoria: "1) Verificar conectividade com APIs. 2) Validar configuração dos modelos. 3) Tentar novamente.",
+          justificativa: "Garantir funcionamento adequado do sistema de análise.",
+          severidade: "médio",
+          referencias: ["Troubleshooting — Sistema"]
+        }]
+      };
+    }
+    
+    // Executar Agente C (Reconciler)
+    logger.info(`   🔄 Executando Agente C (Reconciler)...`);
+    achadosFinal = await runAgentC(achadosA, achadosB, metodo);
+    
+    if (achadosFinal && achadosFinal.achados?.length > 0) {
+      logger.info(`   ✅ Agente C: ${achadosFinal.achados.length} achados finais`);
+    } else {
+      logger.warn(`   ⚠️ Agente C falhou - usando merge simples`);
+      // Fallback: merge simples dos achados A + B (limitado a 8)
+      const allAchados = [...(achadosA.achados || []), ...(achadosB.achados || [])];
+      achadosFinal = { 
+        achados: allAchados.slice(0, 8).map(achado => ({
+          ...achado,
+          constatacao_hipotese: achado.constatacao_hipotese || "Constatação"
+        }))
+      };
+    }
+    
+    const totalTime = performance.now() - startTime;
+    logger.info(`   🎭 Orquestrador concluído: ${(totalTime / 1000).toFixed(2)}s`);
+    
+    return achadosFinal;
+    
+  } catch (e) {
+    logger.error(`❌ Erro no orquestrador: ${e.message}`);
+    return {
+      achados: [{
+        constatacao_hipotese: "Hipótese",
+        titulo_card: "Erro na análise orquestrada",
+        heuristica_metodo: "Sistema — Erro",
+        descricao: `Erro interno durante a coordenação dos agentes: ${e.message}`,
+        sugestao_melhoria: "1) Verificar logs do servidor. 2) Tentar novamente. 3) Reportar se persistir.",
+        justificativa: "Identificar e resolver problemas técnicos.",
+        severidade: "alto",
+        referencias: ["Error Handling — Sistema"]
+      }]
+    };
+  }
+}
 const MODELO_TEXTO  = process.env.MODELO_TEXTO || "gpt-5";
 const MODELOS_SEM_TEMPERATURA = [/^gpt-5/i, /^o3/i, /^o4/i];
 const TEMP_TEXTO    = Number(process.env.TEMP_TEXTO || 0.2);
@@ -1277,15 +1373,77 @@ const normalizeImageUrl = (u) =>
         );
         status(group, "Persistido", true, `debug_layouts/${fileName}`);
 
-      status(group, "Agente", true, `Vision=${modeloVision} | Heurística=${USE_RESPONSES ? `Responses(${MODELO_TEXTO})` : "OFF"}`);
+      status(group, "Agente", true, `Orquestrador: A(${MODELO_AGENTE_A}) + B(${MODELO_AGENTE_B}) + C(${MODELO_AGENTE_C})`);
       status(group, "RAG", true, USE_RAG ? `ON (${vectorStoreId || "sem ID"})` : "OFF");
 
-      if (USE_RESPONSES) {
-      // Monta a mensagem mínima para a etapa textual
-      const visionData = visionPretty || raw;
-      const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
+      // NOVA ABORDAGEM: Usar orquestrador com 3 agentes especializados
+      try {
+        const tAnalise = performance.now();
         
-        // Para figmaSpec, sempre incluir os dados no prompt (RAG não acessa arquivos locais)
+        // Executar orquestração: A (JSON) + B (Vision) → C (Reconciler)
+        const resultadoFinal = await orchestrateAnalysis(
+          spec,           // figmaSpec para Agente A
+          base64Image,    // imagem para Agente B (se disponível)
+          metodo,         // método heurístico
+          vectorStoreId,  // RAG
+          group           // identificação do grupo
+        );
+        
+        const analise_ms = performance.now() - tAnalise;
+        
+        if (resultadoFinal && resultadoFinal.achados?.length > 0) {
+          // Converter resultado final para formato texto numerado (compatível com frontend)
+          const achadosTexto = [];
+          resultadoFinal.achados.forEach((achado, index) => {
+            const achadoTexto = [
+              `1 - ${achado.constatacao_hipotese || 'N/A'}`,
+              `2 - ${achado.titulo_card || 'N/A'}`,
+              `3 - ${achado.heuristica_metodo || 'N/A'}`,
+              `4 - ${achado.descricao || 'N/A'}`,
+              `5 - ${achado.sugestao_melhoria || 'N/A'}`,
+              `6 - ${achado.justificativa || 'N/A'}`,
+              `7 - ${achado.severidade || 'N/A'}`,
+              `8 - ${Array.isArray(achado.referencias) ? achado.referencias.join(', ') : (achado.referencias || 'N/A')}`
+            ].join('\n');
+            
+            achadosTexto.push(achadoTexto);
+          });
+          
+          const textoFinal = achadosTexto.join('\n[[[FIM_HEURISTICA]]]\n');
+          respostasIndividuais.push(textoFinal);
+          
+          status(group, "Orquestrador: concluído", true, `${resultadoFinal.achados.length} achados`);
+          
+          // Log de timing detalhado
+          const prep_ms = tAnalise - tPrep0;
+          const post_ms = performance.now() - (tAnalise + analise_ms);
+          
+          console.log(`[ITEM ${i+1}/${totalItems.length}] Timer Tela: ${((performance.now() - tItem0) / 1000).toFixed(2)}s | prep: ${(prep_ms / 1000).toFixed(2)}s | orquestração: ${(analise_ms / 1000).toFixed(2)}s | pós: ${(post_ms / 1000).toFixed(2)}s`);
+          console.log(`[ITEM ${i+1}/${totalItems.length}] Resumo: ${resultadoFinal.achados.length} achados gerados via orquestração`);
+          
+        } else {
+          // Fallback se orquestração falhar
+          logger.warn(`⚠️ Orquestração falhou para ${group} - usando fallback`);
+          respostasIndividuais.push("Análise não disponível no momento. Tente novamente. [[[FIM_HEURISTICA]]]");
+          status(group, "Orquestrador: fallback", false, "análise não disponível");
+        }
+        
+        continue;
+        
+      } catch (e) {
+        logger.error(`❌ Erro no orquestrador para ${group}: ${e.message}`);
+        respostasIndividuais.push(`Erro na análise orquestrada: ${e.message} [[[FIM_HEURISTICA]]]`);
+        status(group, "Orquestrador: erro", false, e.message);
+        continue;
+      }
+      } catch (e) {
+        status(group, "Persistido", false, e.message);
+      }
+    }
+
+    // ========================================
+    // Fim do loop de processamento de itens  
+    // ========================================
         // Mas truncar se for muito grande para evitar estourar limites de tokens
         let figmaData = "";
         if (hasSpec) {
