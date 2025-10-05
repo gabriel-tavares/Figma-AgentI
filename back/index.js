@@ -653,7 +653,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
           },
           body: JSON.stringify({
             assistant_id: ASSISTANT_VISION_ID,
-            instructions: `Você deve retornar APENAS um JSON válido com a estrutura: {"achados": [{"constatacao_hipotese": "...", "titulo_card": "...", "heuristica_metodo": "...", "descricao": "...", "sugestao_melhoria": "...", "justificativa": "...", "severidade": "alto|médio|baixo|positiva", "referencias": ["..."]}]}`
+            instructions: `Analise esta interface usando ${metodo}. Retorne APENAS um JSON válido com achados de UX. Use o formato: {"achados": [{"constatacao_hipotese": "...", "titulo_card": "...", "heuristica_metodo": "...", "descricao": "...", "sugestao_melhoria": "...", "justificativa": "...", "severidade": "alto|médio|baixo|positiva", "referencias": ["..."]}]}`
           })
         });
         
@@ -663,7 +663,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
         // Aguardar conclusão
         let runStatus = run;
         let attempts = 0;
-        const maxAttempts = 60; // 60 segundos máximo
+        const maxAttempts = 180; // 3 minutos para Vision + RAG + JSON Schema
         
         while ((runStatus.status === 'queued' || runStatus.status === 'in_progress') && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 1000));
