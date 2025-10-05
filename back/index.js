@@ -944,6 +944,7 @@ const normalizeImageUrl = (u) =>
       const hasImg  = !!imgs[i];
       const itemImg = imgs[i];
       const s0 = performance.now();
+      const tItem0 = performance.now();  // início do item
       const tPrep0 = performance.now();      // início do prep
       const spec    = hasSpec ? figmaSpecs[i] : null;
 
