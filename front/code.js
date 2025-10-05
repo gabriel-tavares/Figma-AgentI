@@ -973,6 +973,8 @@ figma.ui.onmessage = async (msg) => {
             })
         });
         const data = await response.json();
+        console.log("🔍 [DEBUG] Resposta da API:", data);
+        console.log("🔍 [DEBUG] Status da resposta:", response.status);
         let blocos = [];
         if (data && Array.isArray(data.respostas)) {
             blocos = data.respostas;
