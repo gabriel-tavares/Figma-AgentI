@@ -498,10 +498,13 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
   const instruction = prompt.replaceAll("${metodo}", metodo);
   
   try {
+    logger.info(`🔄 Agente B: Iniciando análise de imagem (${imageBase64 ? imageBase64.length : 0} chars)`);
+    
     // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
     const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_B);
     
     if (isResponsesModel) {
+      logger.info(`🔄 Agente B: Usando fallback gpt-4o-mini (Responses API não suporta imagens)`);
       // Para Responses API, não suporta imagens diretamente, usar Chat Completions
       const body = {
         model: "gpt-4o-mini", // Fallback para modelo com vision
@@ -509,12 +512,15 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
           role: "user", 
           content: [
             { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
+            { type: "image_url", image_url: { url: imageBase64 } }
           ]
         }],
         max_tokens: 4096,
         ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
       };
+      
+      logger.info(`🔄 Agente B: Enviando para Chat Completions (fallback)`);
+      logger.info(`🔄 Agente B: Prompt ${instruction.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
       
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -525,12 +531,25 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
         body: JSON.stringify(body)
       });
       
+      logger.info(`🔄 Agente B: Response status: ${response.status}`);
+      
       const result = await response.json();
+      logger.info(`🔄 Agente B: Response keys: ${Object.keys(result).join(', ')}`);
+      
+      if (!response.ok) {
+        logger.error(`🔄 Agente B: API Error: ${JSON.stringify(result)}`);
+        return null;
+      }
+      
       const content = result.choices?.[0]?.message?.content;
       
       if (content) {
+        logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
+        logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
         return JSON.parse(cleanContent);
+      } else {
+        logger.warn(`🔄 Agente B: No content in response`);
       }
     } else {
       // Usar Chat Completions para GPT-4 com vision
@@ -540,12 +559,15 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
           role: "user", 
           content: [
             { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } }
+            { type: "image_url", image_url: { url: imageBase64 } }
           ]
         }],
         max_tokens: 4096,
         ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
       };
+      
+      logger.info(`🔄 Agente B: Enviando para Chat Completions (${MODELO_AGENTE_B})`);
+      logger.info(`🔄 Agente B: Prompt ${instruction.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
       
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -556,18 +578,32 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
         body: JSON.stringify(body)
       });
       
+      logger.info(`🔄 Agente B: Response status: ${response.status}`);
+      
       const result = await response.json();
+      logger.info(`🔄 Agente B: Response keys: ${Object.keys(result).join(', ')}`);
+      
+      if (!response.ok) {
+        logger.error(`🔄 Agente B: API Error: ${JSON.stringify(result)}`);
+        return null;
+      }
+      
       const content = result.choices?.[0]?.message?.content;
       
       if (content) {
+        logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
+        logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
         return JSON.parse(cleanContent);
+      } else {
+        logger.warn(`🔄 Agente B: No content in response`);
       }
     }
     
     return null;
   } catch (e) {
-    logger.error(`Erro no Agente B: ${e.message}`);
+    logger.error(`❌ Erro no Agente B: ${e.message}`);
+    logger.error(`❌ Stack trace: ${e.stack}`);
     return null;
   }
 }
