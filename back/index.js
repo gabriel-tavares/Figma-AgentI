@@ -305,26 +305,24 @@ setInterval(limparArquivosTemporarios, 6 * 60 * 60 * 1000);
 /** =========================
  * Configurações globais
  * - OPENAI_API_KEY: chave da API
- * - ASSISTANT_ID: ID do Assistant heurístico
  * - modeloVision: modelo usado para Vision (imagem -> JSON)
  * - temp: temperatura usada no Vision
  */
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const ASSISTANT_ID   = process.env.ASSISTANT_ID || "";
 const OPENAI_PROJECT_ID = process.env.OPENAI_PROJECT_ID || "";
 const OPENAI_ORG = process.env.OPENAI_ORG || "";
 
 // Configurações do Vision (via .env)
 const modeloVision = process.env.MODELO_VISION || "gpt-4.1-mini";
 const tempVision = Number(process.env.TEMP_VISION || 0.1);
-const maxTokensVision = Number(process.env.MAXTOK_VISION || 20000);
+const maxTokensVision = Number(process.env.MAX_TOKENS_VISION || 20000);
 
 // Loop Toggles e modelos para etapa textual (Responses GPT‑5 vs Assistants)
 const USE_RESPONSES_DEFAULT = /^(1|true|on|yes)$/i.test(process.env.USE_RESPONSES || "");
 const MODELO_TEXTO  = process.env.MODELO_TEXTO || "gpt-5";
 const MODELOS_SEM_TEMPERATURA = [/^gpt-5/i, /^o3/i, /^o4/i];
 const TEMP_TEXTO    = Number(process.env.TEMP_TEXTO || 0.2);
-const MAXTOK_TEXTO  = Number(process.env.MAXTOK_TEXTO || 4000);
+const MAXTOK_TEXTO  = Number(process.env.MAX_TOKENS_TEXTO || 4000);
 
 // RAG (File Search / Vector Store)
 const USE_RAG_DEFAULT = /^(1|true|on|yes)$/i.test(process.env.USE_RAG || "");
@@ -410,23 +408,12 @@ if (!OPENAI_API_KEY) {
   logger.error("Variável OPENAI_API_KEY não definida.");
   process.exit(1);
 }
-if (!ASSISTANT_ID) {
-  logger.warn("ASSISTANT_ID não definido - passo Assistants será ignorado (Vision apenas).");
-}
 
     // Cabeçalhos (uso básico só com a Project API Key)
     // Se quiser voltar a forçar Project/Org, basta descomentar as linhas correspondentes.
     const HEADERS_VISION = {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
-      // ...(OPENAI_PROJECT_ID ? { "OpenAI-Project": OPENAI_PROJECT_ID } : {}),
-      // ...(OPENAI_ORG ? { "OpenAI-Organization": OPENAI_ORG } : {}),
-    };
-
-    const HEADERS_ASSISTANTS = {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-      "OpenAI-Beta": "assistants=v2",
       // ...(OPENAI_PROJECT_ID ? { "OpenAI-Project": OPENAI_PROJECT_ID } : {}),
       // ...(OPENAI_ORG ? { "OpenAI-Organization": OPENAI_ORG } : {}),
     };
@@ -519,31 +506,6 @@ if (!ASSISTANT_ID) {
     return Array.from(types);
   };
 
-
-  /**
-   * =========================
-   *  Helpers Assistants v2
-   * =========================
-   */
-/** =========================
- * Função apiAssistants
- * - Wrapper para chamar API de Assistants v2
- * - Lida com erros e converte JSON
- */
-  const apiAssistants = async (path, opts = {}) => {
-    const url = `https://api.openai.com/v1${path}`;
-    const r = await fetchWithRetry(url, { method: "GET", headers: HEADERS_ASSISTANTS, ...opts }, {
-      retries: 4, baseDelay: 600, maxDelay: 6000
-    });
-    const txt = await r.text();
-    let j; try { j = JSON.parse(txt); } catch { j = { raw: txt }; }
-    if (!r.ok) {
-      console.error("[ERROR] Erro OpenAI Assistants:", j);
-      const msg = j?.error?.message || j?.message || "Falha na chamada OpenAI (Assistants)";
-      throw new Error(msg);
-    }
-    return j;
-  };
 
   const stripCodeFence = (s) => {
   if (!s || typeof s !== "string") return s;
@@ -1159,8 +1121,7 @@ const normalizeImageUrl = (u) =>
         );
         status(group, "Persistido", true, `debug_layouts/${fileName}`);
 
-      // Log do agente ativo
-      status(group, "Agente", true, `Vision=${modeloVision} | Heurística=${USE_RESPONSES ? `Responses(${MODELO_TEXTO})` : (ASSISTANT_ID ? "Assistants" : "OFF")}`);
+      status(group, "Agente", true, `Vision=${modeloVision} | Heurística=${USE_RESPONSES ? `Responses(${MODELO_TEXTO})` : "OFF"}`);
       status(group, "RAG", true, USE_RAG ? `ON (${vectorStoreId || "sem ID"})` : "OFF");
 
       if (USE_RESPONSES) {
@@ -1189,12 +1150,6 @@ const normalizeImageUrl = (u) =>
         ].filter(Boolean).join("\n");
         // Usa o prompt do Assistant, se houver, como base. Se não, usa fallback.
         let instr = buildHeurInstruction(metodo);
-        try {
-          if (ASSISTANT_ID) {
-            const a = await apiAssistants(`/assistants/${ASSISTANT_ID}`);
-            if (a?.instructions) instr = String(a.instructions);
-          }
-        } catch {}
         
         
         // Verificar se é modelo O3 e reduzir prompt se necessário
@@ -1483,70 +1438,35 @@ Para múltiplos achados, adicione mais objetos no array "achados".`;
           status(group, "Análise heurística: erro", false);
         }
         continue;
+      } else {
+        // Fallback: análise direta sem Responses
+        logger.warn(`Modo fallback: USE_RESPONSES=false - análise limitada`);
+        
+        const tInfer = performance.now();
+        const prep_ms = performance.now() - tPrep0;
+        const tPost0 = performance.now();
+        
+        // Resposta simples indicando que não há análise heurística
+        const textoFallback = "Análise heurística não disponível. Configure USE_RESPONSES=true para ativar a análise completa.";
+        
+        const infer_ms = performance.now() - tInfer;
+        const post_ms = performance.now() - tPost0;
+        const total_ms = performance.now() - tItem0;
+        
+        console.log(`[${group}] Timer Tela: ${(total_ms / 1000).toFixed(2)}s | prep: ${(prep_ms / 1000).toFixed(2)}s | RAG: ${(0 / 1000).toFixed(2)}s | inferência: ${(infer_ms / 1000).toFixed(2)}s | pós: ${(post_ms / 1000).toFixed(2)}s`);
+        console.log(`[${group}] Resumo Tokens: 0 entrada + 0 saída = 0 total`);
+        
+        respostasIndividuais.push({
+          item: i + 1,
+          texto: textoFallback,
+          figmaSpec: parsed,
+          canvasPx: canvasPx,
+          method: metodo,
+          context: descricao,
+          timing: { prep_ms, infer_ms, post_ms, total_ms },
+          tokens: { input: 0, output: 0, total: 0 }
+        });
       }
-
-      const evidenciasAgregadas = {};
-      const visionData = visionPretty || raw;
-      const visionDataLimited = visionData.length > 50000 ? visionData.substring(0, 50000) + "\n... (dados truncados por tamanho)" : visionData;
-      
-      const mensagemMinima = [
-        `metodo: ${metodo}`,
-        `contexto: ${descricao || "Nenhum."}`,
-        `descricao_json:`,
-        visionDataLimited
-      ].join("\n");
-
-      // 🔗 Cria nova thread no Assistant v2
-      const thread = await apiAssistants(`/threads`, { method: "POST", body: JSON.stringify({}) });
-      status(group, "Assistants: thread", true, thread.id);
-
-      // Message Envia mensagem (JSON + contexto) para a thread
-      await apiAssistants(`/threads/${thread.id}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ role: "user", content: [{ type: "text", text: mensagemMinima }] }),
-      });
-      status(group, "Assistants: mensagem enviada", true);
-      const prep_ms = performance.now() - tPrep0;  // fim do prep
-      const tInfer  = performance.now();           // início inferência (run/poll)
-
-      // Run Cria uma run do Assistant (executa a análise heurística)
-      const run = await apiAssistants(`/threads/${thread.id}/runs`, {
-        method: "POST",
-        body: JSON.stringify({ assistant_id: ASSISTANT_ID }),
-      });
-      console.log("[RUN] run.id:", run?.id || "(sem id)");
-
-      // Waiting Espera até a run terminar (pollRun)
-      const finished = await pollRun(thread.id, run.id);
-      const tPost0 = performance.now(); // início do pós-processamento
-      const steps = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}/steps`, { method:"GET", headers: HEADERS_ASSISTANTS }).then(r=>r.json()).catch(()=>null);
-      const ragStepTypes = Array.isArray(steps?.data) ? steps.data.map((s) => s?.step_details?.type || s.type).filter(Boolean) : [];
-      status(group, "Assistants: rag steps", ragStepTypes.includes("file_search"), ragStepTypes.length ? ragStepTypes.join(', ') : "nenhum");
-      const rag_ms = steps?.data?.filter(s => (s.type==="tool" || s.type==="message_creation") && s.step_details?.type==="file_search")
-                  ?.reduce((acc,s)=> acc + Math.max(0, ((s.completed_at||0)-(s.created_at||0))*1000), 0) ?? 0;
-
-      status(group, "Assistants: run", finished.status === "completed", finished.status);
-      if (finished?.usage) {
-        status(group, "Assistants: tokens", true, `input:${finished.usage.prompt_tokens ?? "-"} output:${finished.usage.completion_tokens ?? "-"}`);
-      }
-
-      if (finished.status !== "completed") {
-        respostasIndividuais.push("[WARN] Não foi possível analisar. [[[FIM_HEURISTICA]]]");
-        continue;
-      }
-
-      // Retrieve Recupera últimas mensagens da thread e pega a resposta do Assistant
-      const msgs = await apiAssistants(`/threads/${thread.id}/messages?limit=10&order=desc`);
-      const assistantMsg = (msgs.data || []).find(m => m.role === "assistant");
-      const assistantText = assistantMsg?.content?.find(c => c.type === "text")?.text?.value || "";
-
-      status(group, "Assistants: resposta", !!assistantText, assistantText ? "ok" : "vazia");
-      respostasIndividuais.push((assistantText || "").trim() || "[WARN] Resposta vazia. [[[FIM_HEURISTICA]]]");
-logLine({ ts:new Date().toISOString(), batch_id, run_id: run.id, screen_name: nomeLayoutUser || "(sem nome)", model_name: "Assistants", screen_duration_ms: performance.now()-s0, prep_ms, rag_ms, infer_ms: performance.now()-tInfer, post_ms: performance.now()-tPost0, tokens: finished?.usage });
-const total_ms = performance.now()-s0;
-const inferencia_total_ms = performance.now()-tInfer;
-const inferencia_sem_rag_ms = Math.max(0, inferencia_total_ms - rag_ms); // Desconta o RAG da inferência
-        console.log(`   ⏱️ Timer: ${sec(total_ms)}s | prep: ${sec(prep_ms)}s | RAG: ${sec(rag_ms)}s | inferência: ${sec(inferencia_sem_rag_ms)}s | pós: ${sec(performance.now()-tPost0)}s`);
 
 
     }
