@@ -618,6 +618,8 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
         }
         
         if (runStatus.status === 'completed') {
+          logger.info(`🔄 Agente B: Run completed successfully!`);
+          
           // Buscar mensagens
           const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
             headers: {
@@ -627,7 +629,10 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
           });
           
           const messages = await messagesResponse.json();
+          logger.info(`🔄 Agente B: Messages received: ${messages.data?.length || 0} messages`);
+          
           const lastMessage = messages.data[0];
+          logger.info(`🔄 Agente B: Last message role: ${lastMessage?.role}, content type: ${typeof lastMessage?.content}`);
           
           if (lastMessage?.content?.[0]?.text?.value) {
             const content = lastMessage.content[0].text.value;
@@ -636,12 +641,16 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
             
             const cleanContent = stripCodeFence(content);
             return JSON.parse(cleanContent);
+          } else {
+            logger.warn(`🔄 Agente B: No text content found in last message`);
+            logger.warn(`🔄 Agente B: Last message content: ${JSON.stringify(lastMessage?.content, null, 2)}`);
           }
         } else {
           logger.error(`🔄 Agente B: Run failed with status: ${runStatus.status} after ${attempts}s`);
           if (runStatus.last_error) {
             logger.error(`🔄 Agente B: Error details: ${JSON.stringify(runStatus.last_error)}`);
           }
+          logger.error(`🔄 Agente B: Full run status: ${JSON.stringify(runStatus, null, 2)}`);
         }
         
       } catch (assistantError) {
