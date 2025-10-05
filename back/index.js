@@ -1168,7 +1168,7 @@ const normalizeImageUrl = (u) =>
         const mensagemMinima = [
           `metodo: ${metodo}`,
           `contexto: ${descricao || "Nenhum."}`,
-          figmaSpecFile ? `figma_spec_arquivo: temp/figma_spec_item${i+1}.json` : `descricao_json:`,
+          figmaSpecFile ? `figma_spec_arquivo: ${figmaSpecFile}` : `descricao_json:`,
           figmaSpecFile ? "" : visionDataLimited
         ].filter(Boolean).join("\n");
         // Usa o prompt do Assistant, se houver, como base. Se não, usa fallback.
