@@ -28,6 +28,8 @@ Regras dos cartões
 - Título claro; 1 heurística; descrição de 3–5 linhas; até 3 passos de melhoria 
   (ex.: alinhar, ajustar espaçamento, usar máscara/contain, medir contraste no Figma); 
   justificativa curta; severidade e referência.
+- Constatacao ou hipotese: apenas exibir a palavra Contação ou a palavra Hipótese, nao deve criar mais nenhum texto.
+
 
 Prioridade e limites
 - ≤8 cartões; priorize acessibilidade/legibilidade → ação principal/CTA → consistência.
@@ -36,6 +38,18 @@ Checklist
 - Sem termos proibidos.
 - Números só quando ajudam e arredondados.
 - Inclua "Hipótese" ao tratar de feedback/estados não observáveis.
+
+REGRAS PARA CONSTATAÇÃO vs HIPÓTESE
+- **Constatação**: O que você VÊ diretamente na imagem:
+  • Contraste visível, cores, tamanhos, alinhamentos
+  • Elementos cortados, sobreposições, hierarquia visual
+  • Tudo VISUALMENTE EVIDENTE na captura
+  
+- **Hipótese**: O que você NÃO PODE VER e precisa ASSUMIR:
+  • Estados interativos (hover, foco, clique)
+  • Medições precisas que precisam ser feitas no Figma
+  • Comportamentos que requerem teste adicional
+  • Funcionalidades não visíveis na imagem estática
 
 Importante
 - Esta saída é INTERNA ao orquestrador (será mesclada pelo Reconciler).
