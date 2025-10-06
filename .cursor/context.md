@@ -16,14 +16,17 @@ O **Figma-AgentI** é um sistema completo de análise heurística de UX para Fig
 ```
 Heuristica/
 ├── back/
-│   ├── index.js              # Servidor principal Express
+│   ├── index.js              # Servidor principal Express + Orquestrador
 │   ├── package.json          # Dependências backend
 │   ├── Dockerfile           # Container otimizado (Node 18-alpine)
 │   ├── docker-compose.yml   # Produção
 │   ├── docker-compose.dev.yml # Desenvolvimento
 │   ├── prompts/
-│   │   ├── heuristica.txt   # Prompt principal Nielsen
-│   │   └── vision.txt       # Prompt Vision API
+│   │   ├── agente-a-json-analyst.txt    # Prompt JSON Analyst
+│   │   ├── agente-b-vision-reviewer.txt # Prompt Vision Reviewer
+│   │   ├── agente-c-reconciler.txt      # Prompt Reconciler
+│   │   ├── heuristica.txt   # Prompt principal Nielsen (legado)
+│   │   └── vision.txt       # Prompt Vision API (legado)
 │   ├── debug_responses/     # Respostas das IAs salvas
 │   ├── debug_layouts/       # JSONs FigmaSpec processados
 │   ├── debug_vision/        # Resultados Vision API
@@ -66,7 +69,10 @@ USE_RAG=true                   # Ativa busca em documentos
 LOG_LEVEL=info                 # Nível de logs (error|warn|info|debug)
 DEBUG_FILES_RETENTION_DAYS=7   # Dias para manter arquivos debug
 
-# Modelos IA
+# Modelos IA (Orquestrador)
+MODELO_AGENTE_A=gpt-5-mini     # JSON Analyst
+MODELO_AGENTE_B=gpt-4o-mini    # Vision Reviewer  
+MODELO_AGENTE_C=o3-mini        # Reconciler
 MODELO_VISION=gpt-4o-mini      # TIER 2: 2.5M tokens/dia
 MODELO_TEXTO=gpt-5-mini        # TIER 1: 250k tokens/dia
 MAX_TOKENS_VISION=4096         # Tokens máx Vision
@@ -80,27 +86,43 @@ PORT=3000
 
 ## 🧠 Sistema de Análise
 
-### 3 Modos de Operação
-1. **Heurística Completa** - 10 heurísticas de Nielsen
-2. **Análise Rápida** - Problemas críticos apenas
-3. **Benchmark Multi-IA** - Comparação de modelos
+### Arquitetura Orquestrada (3 Agentes Especializados)
+1. **Agente A (JSON Analyst)** - Análise estrutural via FigmaSpec
+2. **Agente B (Vision Reviewer)** - Análise visual via imagem
+3. **Agente C (Reconciler)** - Fusão e validação final
 
-### Fluxo de Análise
+### Fluxo de Orquestração
 ```
-Seleção Frames → Processamento Híbrido → Análise IA → Cards Visuais
-     ↓                    ↓                ↓           ↓
-1-10 frames      FigmaSpec + Vision    Multi-modelos  Severidade
+RAG Context → A+B Paralelo → Validação → C Reconciler → 8 Cards Finais
+     ↓            ↓             ↓           ↓              ↓
+  Documentos   JSON+Vision   Fallbacks   Deduplicação   Interface
 ```
 
-### Processamento Híbrido
-- **Frames Reais**: FigmaSpec (dados estruturados nativos do Figma)
-- **Imagens/Screenshots**: Vision API (conversão visual para JSON)
+### Modelos por Agente
+- **Agente A**: `gpt-5-mini` (Responses API) ou `gpt-4o-mini` (Chat Completions)
+- **Agente B**: `gpt-4o-mini` (Chat Completions + Vision)
+- **Agente C**: `o3-mini` (Responses API) ou `gpt-4o-mini` (Chat Completions)
+
+### Sistema RAG Compartilhado
+- **Extração única**: RAG executado uma vez no início
+- **Compartilhamento**: Contexto passado para todos os agentes
+- **Eficiência**: Evita múltiplas chamadas desnecessárias
+- **Vector Store**: `vs_6893c02afcb081918c69241839c8ca54`
 
 ### Sistema de Severidade
 - 🔴 **Alto**: Problemas críticos (impedem uso)
 - 🟡 **Médio**: Problemas de usabilidade (causam confusão)
 - 🟢 **Baixo**: Melhorias de polimento
 - 🔵 **Positivo**: Pontos fortes identificados
+
+### Sistema de Constatação vs Hipótese
+- **Constatação**: Evidência visual direta (sem tag no frontend)
+- **Hipótese**: Requer verificação adicional (tag roxa no frontend)
+
+### Detecção de Intenção Visual
+- **Full-bleed intencional**: Não reporta como erro se centralizada e overflow ≤8%
+- **Hero crop**: Preserva foco central
+- **Edge-to-edge**: Impacto visual sem cobrir UI importante
 
 ## 🤖 Modelos de IA Suportados
 
@@ -139,10 +161,11 @@ Seleção Frames → Processamento Híbrido → Análise IA → Cards Visuais
 - `debug_vision/` - Resultados da Vision API
 
 ### Métricas Coletadas
-- Tempo de processamento por etapa
-- Tokens utilizados por modelo
-- Score UX (0-100 pontos)
-- Latência e custos
+- **Tempo detalhado**: RAG + Agente A + Agente B + Agente C individual
+- **Tokens por agente**: entrada e saída separados
+- **Total consolidado**: soma de todos os tokens consumidos
+- **Performance**: latência e throughput por etapa
+- **Qualidade**: achados gerados e severidade distribuída
 
 ## 🎯 Contexto de Conversas Anteriores
 
@@ -184,14 +207,43 @@ Seleção Frames → Processamento Híbrido → Análise IA → Cards Visuais
 - **Limpeza por idade** de arquivos de debug (configurável)
 - **Logs informativos** sobre fallbacks e erros
 
+### Melhorias Recentes (Outubro 2025)
+
+#### Sistema Orquestrado Multi-Agente
+- **Arquitetura**: 3 agentes especializados (JSON Analyst, Vision Reviewer, Reconciler)
+- **Execução**: A+B paralelo, depois C para fusão final
+- **RAG compartilhado**: Uma busca, contexto para todos os agentes
+- **Modelos configuráveis**: Variáveis de ambiente por agente
+
+#### Interface e UX
+- **Tags inteligentes**: Hipótese = tag roxa, Constatação = sem tag
+- **Detecção de intenção**: Full-bleed vs erro real (overflow ≤8%)
+- **Classificação correta**: Visível = Constatação, Teste = Hipótese
+- **Cards limpos**: Remoção de textos técnicos desnecessários
+
+#### Performance e Monitoramento
+- **Timing individual**: Cada agente com cronômetro próprio
+- **Tracking de tokens**: Entrada e saída por agente + total
+- **Logs detalhados**: Debug automático para troubleshooting
+- **Execução paralela**: A+B simultâneo para otimização
+
+#### Prompts Especializados
+- **Exemplos práticos**: Casos específicos em cada prompt
+- **Regras claras**: Quando usar Constatação vs Hipótese
+- **Intenção visual**: Critérios para overflow intencional
+- **Consultoria especializada**: Baseado em engenharia de contexto
+
 ### Status Atual do Sistema
-- **✅ Sistema 100% funcional** com todas as correções aplicadas
-- **✅ RAG ativado** e funcionando (`vs_6893c02afcb081918c69241839c8ca54`)
-- **✅ Permissões resolvidas** - sem mais erros EACCES
-- **✅ Variáveis de ambiente** lidas corretamente do EasyPanel
-- **✅ Performance otimizada** - análises completas em ~90s
-- **✅ Tokens configurados** - 50,000 tokens máx para análise
-- **✅ Segurança mantida** - usuário não-root preservado
+- **✅ Sistema Orquestrado** com 3 agentes especializados funcionais
+- **✅ RAG compartilhado** eficiente entre todos os agentes
+- **✅ Detecção de intenção visual** - evita falsos positivos de overflow
+- **✅ Sistema Constatação vs Hipótese** com tags visuais corretas
+- **✅ Tracking completo** - tempo e tokens por agente individual
+- **✅ Performance otimizada** - análises completas em ~140s
+- **✅ Interface inteligente** - tags roxas apenas para hipóteses
+- **✅ Prompts especializados** - cada agente com expertise específica
+- **✅ Fallbacks robustos** - sistema continua funcionando mesmo com falhas
+- **✅ Logs detalhados** - debug completo de timing e consumo
 
 ## 📝 Notas Importantes
 
@@ -204,6 +256,6 @@ Seleção Frames → Processamento Híbrido → Análise IA → Cards Visuais
 ---
 
 **Última atualização**: Outubro 2025  
-**Versão do sistema**: 1.0.0  
-**Status**: ✅ Totalmente funcional e otimizado
+**Versão do sistema**: 2.0.0 - Orquestrador Multi-Agente  
+**Status**: ✅ Sistema orquestrado totalmente funcional e otimizado
 
