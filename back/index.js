@@ -823,7 +823,11 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     const [resultA, resultB] = await Promise.allSettled([
       (async () => {
+        const agenteAStartIndividual = performance.now();
         const result = await runAgentA(figmaSpec, metodo, vectorStoreId, useRag);
+        const agenteAEndIndividual = performance.now();
+        timeAgenteA = agenteAEndIndividual - agenteAStartIndividual;
+        
         if (result && result.tokens) {
           tokensA = result.tokens;
           return result.data;
@@ -831,7 +835,11 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
         return result;
       })(),
       imageBase64 ? (async () => {
+        const agenteBStartIndividual = performance.now();
         const result = await runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContext);
+        const agenteBEndIndividual = performance.now();
+        timeAgenteB = agenteBEndIndividual - agenteBStartIndividual;
+        
         if (result && result.tokens) {
           tokensB = result.tokens;
           return result.data;
@@ -839,9 +847,6 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
         return result;
       })() : Promise.resolve(null)
     ]);
-    
-    timeAgenteA = performance.now() - agenteAStart;
-    timeAgenteB = imageBase64 ? performance.now() - agenteBStart : 0;
     
     // Processar resultados do Agente A
     if (resultA.status === 'fulfilled' && resultA.value) {
@@ -895,15 +900,17 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     // Executar Agente C (Reconciler)
     logger.info(`   🔄 Executando Agente C (Reconciler)...`);
-    const agenteCStart = performance.now();
+    const agenteCStartIndividual = performance.now();
     const resultC = await runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag, ragContext);
+    const agenteCEndIndividual = performance.now();
+    timeAgenteC = agenteCEndIndividual - agenteCStartIndividual;
+    
     if (resultC && resultC.tokens) {
       tokensC = resultC.tokens;
       achadosFinal = resultC.data;
     } else {
       achadosFinal = resultC;
     }
-    timeAgenteC = performance.now() - agenteCStart;
     
     if (achadosFinal && achadosFinal.achados?.length > 0) {
       logger.info(`   ✅ Agente C: ${achadosFinal.achados.length} achados finais`);
@@ -925,16 +932,24 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     // Logs detalhados de performance por agente
     logger.info(`[ITEM ${group}] Timer Detalhado:`);
     logger.info(`   📊 RAG: ${(timeRAG / 1000).toFixed(2)}s`);
-    logger.info(`   🔄 Agente A (JSON): ${(timeAgenteA / 1000).toFixed(2)}s → ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'} | Tokens: ${tokensA.input}→${tokensA.output}`);
-    logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'} | Tokens: ${tokensB.input}→${tokensB.output}`);
-    logger.info(`   🔄 Agente C (Reconciler): ${(timeAgenteC / 1000).toFixed(2)}s → ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'} | Tokens: ${tokensC.input}→${tokensC.output}`);
+    logger.info(`   🔄 Agente A (JSON): ${(timeAgenteA / 1000).toFixed(2)}s → ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'} | Tokens: ${tokensA.input || 0}→${tokensA.output || 0}`);
+    logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'} | Tokens: ${tokensB.input || 0}→${tokensB.output || 0}`);
+    logger.info(`   🔄 Agente C (Reconciler): ${(timeAgenteC / 1000).toFixed(2)}s → ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'} | Tokens: ${tokensC.input || 0}→${tokensC.output || 0}`);
     
-    const totalTokensInput = tokensA.input + tokensB.input + tokensC.input;
-    const totalTokensOutput = tokensA.output + tokensB.output + tokensC.output;
+    const totalTokensInput = (tokensA.input || 0) + (tokensB.input || 0) + (tokensC.input || 0);
+    const totalTokensOutput = (tokensA.output || 0) + (tokensB.output || 0) + (tokensC.output || 0);
     const totalTokens = totalTokensInput + totalTokensOutput;
     
     logger.info(`   💰 Tokens TOTAL: ${totalTokensInput} entrada + ${totalTokensOutput} saída = ${totalTokens} total`);
     logger.info(`   ⏱️ Tempo total orquestração: ${(totalTime / 1000).toFixed(2)}s`);
+    
+    // Debug adicional para tokens zerados
+    if (tokensA.input === 0 && tokensA.output === 0) {
+      logger.warn(`🔍 DEBUG: Agente A retornou tokens zerados - verificar extração`);
+    }
+    if (tokensC.input === 0 && tokensC.output === 0) {
+      logger.warn(`🔍 DEBUG: Agente C retornou tokens zerados - verificar extração`);
+    }
     
     return achadosFinal;
     
