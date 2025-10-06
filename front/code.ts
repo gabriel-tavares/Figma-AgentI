@@ -997,7 +997,7 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
               blocos = jsonData.achados.map((achado: any) => {
                 // Lógica para constatacao_hipotese: só exibir se for "Hipótese"
                 let constatacaoTexto = '';
-                const constatacao = achado.constatacao_hipotese || 'Constatação';
+                const constatacao = achado.constatacao_hipotese || '';
                 if (constatacao.toLowerCase().includes('hipótese') || constatacao.toLowerCase().includes('hipotese')) {
                   constatacaoTexto = 'Hipótese';
                 }

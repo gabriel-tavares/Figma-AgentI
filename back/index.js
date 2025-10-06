@@ -653,7 +653,7 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
     logger.info(`🔄 Agente C: Iniciando reconciliação de ${(achadosA.achados?.length || 0) + (achadosB.achados?.length || 0)} achados`);
     
     // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
-    const modeloAgenteC = process.env.MODELO_AGENTE_C || "gpt-4o-mini";
+    const modeloAgenteC = process.env.MODELO_AGENTE_C || "o3-mini";
     const isResponsesModel = /^(gpt-5|o3|o4)/i.test(modeloAgenteC);
     
     logger.info(`🔄 Agente C: Usando modelo ${modeloAgenteC} via ${isResponsesModel ? 'Responses' : 'Chat Completions'} API`);
@@ -832,6 +832,13 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     const totalTime = performance.now() - startTime;
     logger.info(`   🎭 Orquestrador concluído: ${(totalTime / 1000).toFixed(2)}s`);
+    
+    // Logs detalhados de performance por agente
+    logger.info(`[ITEM ${group}] Timer Agentes:`);
+    logger.info(`   🔄 Agente A (JSON): ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'}`);
+    logger.info(`   🔄 Agente B (Vision): ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'}`);
+    logger.info(`   🔄 Agente C (Reconciler): ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'}`);
+    logger.info(`   ⏱️ Tempo total orquestração: ${(totalTime / 1000).toFixed(2)}s`);
     
     return achadosFinal;
     
