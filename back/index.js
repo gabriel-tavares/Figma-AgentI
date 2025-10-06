@@ -750,45 +750,32 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
   let ragContext = null; // Para compartilhar entre agentes
   
   try {
-    // Executar Agente A e B em paralelo
+    // NOVA ESTRATÉGIA: Extrair RAG primeiro, depois executar A e B em paralelo
+    logger.info(`   🔄 Extraindo contexto RAG para compartilhamento...`);
+    
+    if (useRag && vectorStoreId) {
+      try {
+        ragContext = await getRagContext(metodo, vectorStoreId);
+        if (ragContext) {
+          logger.info(`🔄 Contexto RAG extraído: ${ragContext.length} chars (será compartilhado)`);
+        }
+      } catch (ragError) {
+        logger.warn(`🔄 Erro ao extrair RAG: ${ragError.message}`);
+      }
+    }
+    
+    // Executar Agente A e B em paralelo (ambos com RAG compartilhado)
     logger.info(`   🔄 Executando Agente A (JSON) e B (Vision) em paralelo...`);
     
     const [resultA, resultB] = await Promise.allSettled([
       runAgentA(figmaSpec, metodo, vectorStoreId, useRag),
-      imageBase64 ? (async () => {
-        // Executar Agente A primeiro para obter RAG, depois Agente B
-        if (useRag && vectorStoreId) {
-          try {
-            logger.info(`🔄 Obtendo contexto RAG para Agente B...`);
-            const ragContextForB = await getRagContext(metodo, vectorStoreId);
-            return await runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContextForB);
-          } catch (ragError) {
-            logger.warn(`🔄 Erro ao obter RAG para Agente B: ${ragError.message}`);
-            return await runAgentB(imageBase64, metodo, vectorStoreId, false, null);
-          }
-        } else {
-          return await runAgentB(imageBase64, metodo, vectorStoreId, useRag, null);
-        }
-      })() : Promise.resolve(null)
+      imageBase64 ? runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContext) : Promise.resolve(null)
     ]);
     
     // Processar resultados do Agente A
     if (resultA.status === 'fulfilled' && resultA.value) {
       achadosA = resultA.value;
       logger.info(`   ✅ Agente A: ${achadosA.achados?.length || 0} achados`);
-      
-      // EXTRAIR CONTEXTO RAG do Agente A para compartilhar
-      if (useRag && vectorStoreId) {
-        try {
-          logger.info(`🔄 Extraindo contexto RAG do Agente A para compartilhamento...`);
-          ragContext = await getRagContext(metodo, vectorStoreId);
-          if (ragContext) {
-            logger.info(`🔄 Contexto RAG extraído: ${ragContext.length} chars`);
-          }
-        } catch (ragError) {
-          logger.warn(`🔄 Erro ao extrair RAG: ${ragError.message}`);
-        }
-      }
     } else {
       logger.warn(`   ⚠️ Agente A falhou: ${resultA.reason?.message || 'erro desconhecido'}`);
       achadosA = { achados: [] };
