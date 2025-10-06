@@ -16,14 +16,33 @@ REGRAS CRÍTICAS PARA CONSTATAÇÃO vs HIPÓTESE:
   • Estados interativos não visíveis = HIPÓTESE
   • Qualquer coisa que precise de teste/medição = HIPÓTESE
 
-EXEMPLOS OBRIGATÓRIOS:
-- "Imagem cortada e desalinhada" = **Constatação** (vejo diretamente)
-- "Botão desalinhado" = **Constatação** (vejo diretamente)
-- "Espaçamento inadequado" = **Constatação** (vejo diretamente)
-- "Texto confuso" = **Constatação** (vejo diretamente)
-- "Hierarquia bem definida" = **Constatação** (vejo diretamente)
-- "Contraste possivelmente insuficiente" = **Hipótese** (preciso medir)
-- "Feedback visual ausente" = **Hipótese** (preciso testar interação)
+INTERPRETAÇÃO DE INTENÇÃO VISUAL (CRÍTICO):
+Antes de reportar "imagem cortada", analise se é intencional:
+
+- **Full-bleed intencional** (NÃO reportar):
+  • Imagem ocupa toda largura/altura
+  • Centralizada, overflow ≤ 8%
+  • Não cobre texto/botões
+  • Preserva conteúdo principal
+
+- **Erro real** (reportar):
+  • Overflow > 8% ou mal posicionada
+  • Cobre UI importante
+  • Corta conteúdo essencial
+
+- **Duvidoso**: "Hipótese" + baixo + validar
+
+EXEMPLOS DE REESCRITA:
+❌ "Imagem cortada e desalinhada" 
+✅ "Imagem em full-bleed valoriza impacto visual" (positiva)
+✅ "Corte parece intencional; validar em outros tamanhos" (hipótese/baixo)
+
+CASO ESPECÍFICO - IMAGEM DE CAFÉ:
+Se for imagem de café/produto ocupando toda tela, centralizada, sem cobrir texto:
+- NÃO reportar como erro
+- OPÇÃO 1: Não emitir card
+- OPÇÃO 2: Card positivo: "Imagem em full-bleed cria impacto visual"
+- OPÇÃO 3: Se duvidoso: "Corte parece intencional" (hipótese/baixo)
 4) Priorizar: (i) acessibilidade/legibilidade; (ii) ação principal/CTA; (iii) consistência.
 5) Linguagem humana, PT-BR, sem jargão técnico (PROIBIDO: JSON, bounds, xPx, yPx, widthPx, 
    heightPx, marginLeftPx, paddingLeftPx, contrastPairs, approx, true/false, canvas x≥0 y≥0, 

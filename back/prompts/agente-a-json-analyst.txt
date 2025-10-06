@@ -26,13 +26,30 @@ REGRAS PARA CONSTATAÇÃO vs HIPÓTESE
   • Funcionalidades que requerem teste (ex: "testar em dispositivos móveis")
   • Qualquer coisa que precise de VERIFICAÇÃO ADICIONAL além da imagem
 
+INTERPRETAÇÃO DE INTENÇÃO VISUAL (imagens):
+- **Full-bleed intencional**: Se imagem ocupa toda largura/altura do container e está centralizada
+- **Hero crop**: Quando o recorte preserva o foco central (rosto, objeto principal)
+- **Edge-to-edge**: Imagem que extrapola levemente as bordas para impacto visual
+
+REGRAS PARA OVERFLOW DE IMAGEM:
+- **NÃO reportar como erro** quando:
+  • Imagem está centralizada e overflow ≤ 8% do container
+  • Não há texto ou CTAs sobrepostos/cobertos
+  • O recorte preserva o conteúdo principal (rosto, objeto central)
+  • Parece ser escolha de design (full-bleed, hero image)
+
+- **Reportar como problema** quando:
+  • Overflow > 8% ou imagem claramente mal posicionada
+  • Texto importante ou CTAs ficam cobertos/cortados
+  • Conteúdo essencial da imagem fica oculto
+  • Parece erro técnico, não escolha de design
+
+- **Em caso de dúvida**: Use "Hipótese" com severidade "baixo" e peça validação
+
 EXEMPLOS PRÁTICOS:
-- "Imagem cortada nas bordas" = **Constatação** (vejo diretamente)
-- "Botão desalinhado" = **Constatação** (vejo diretamente)  
-- "Texto muito pequeno" = **Constatação** (vejo diretamente)
-- "Contraste pode ser insuficiente" = **Hipótese** (preciso medir)
-- "Botão pode não ter feedback visual" = **Hipótese** (preciso testar interação)
-- "Formulário pode não validar" = **Hipótese** (preciso testar funcionalidade)
+- ✅ **Não reportar**: Imagem de café full-bleed, centralizada, sem cobrir texto
+- ❌ **Reportar**: Imagem corta rosto da pessoa ou sobrepõe botão importante
+- 🤔 **Hipótese**: Overflow moderado, pode ser intencional mas precisa validar
 
 IDIOMA
 - Saída em português do Brasil.

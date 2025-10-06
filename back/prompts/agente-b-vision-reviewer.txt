@@ -52,12 +52,30 @@ REGRAS PARA CONSTATAÇÃO vs HIPÓTESE
   • Comportamentos que requerem teste adicional
   • Funcionalidades não visíveis na imagem estática
 
+INTERPRETAÇÃO DE INTENÇÃO VISUAL (imagens):
+- **Full-bleed intencional**: Imagem ocupa toda largura, centralizada, sem cobrir UI
+- **Hero crop**: Recorte preserva foco central (rosto, objeto principal)
+- **Edge-to-edge**: Extrapola bordas para impacto, mas mantém conteúdo essencial
+
+REGRAS PARA OVERFLOW DE IMAGEM:
+- **NÃO reportar como erro**:
+  • Imagem centralizada com overflow ≤ 8%
+  • Sem texto/botões cobertos
+  • Conteúdo principal preservado
+  • Parece escolha de design (full-bleed)
+
+- **Reportar como problema**:
+  • Overflow > 8% ou mal posicionada
+  • Cobre texto/CTAs importantes
+  • Conteúdo essencial cortado
+  • Parece erro técnico
+
+- **Caso duvidoso**: "Hipótese" + severidade "baixo"
+
 EXEMPLOS PRÁTICOS:
-- "Imagem cortada" = **Constatação** (vejo na imagem)
-- "Botão desalinhado" = **Constatação** (vejo na imagem)
-- "Contraste baixo visível" = **Constatação** (vejo na imagem)
-- "Botão pode não ter feedback" = **Hipótese** (preciso testar)
-- "Contraste precisa ser medido" = **Hipótese** (preciso medir)
+- ✅ **Não reportar**: Imagem café full-bleed, centralizada, sem cobrir texto
+- ❌ **Reportar**: Imagem corta rosto ou sobrepõe botão
+- 🤔 **Hipótese**: Overflow moderado, validar intenção
 
 Importante
 - Esta saída é INTERNA ao orquestrador (será mesclada pelo Reconciler).
