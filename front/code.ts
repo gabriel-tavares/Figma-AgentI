@@ -995,7 +995,14 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
             if (jsonData.achados && Array.isArray(jsonData.achados)) {
               // Converter cada achado para formato esperado pelo parser
               blocos = jsonData.achados.map((achado: any) => {
-                return `1 - ${achado.constatacao_hipotese || 'Constatação'}
+                // Lógica para constatacao_hipotese: só exibir se for "Hipótese"
+                let constatacaoTexto = '';
+                const constatacao = achado.constatacao_hipotese || 'Constatação';
+                if (constatacao.toLowerCase().includes('hipótese') || constatacao.toLowerCase().includes('hipotese')) {
+                  constatacaoTexto = 'Hipótese';
+                }
+                
+                return `1 - ${constatacaoTexto}
 2 - ${achado.titulo_card || 'Sem título'}
 3 - ${achado.heuristica_metodo || ''}
 4 - ${achado.descricao || ''}
@@ -1300,10 +1307,39 @@ const linhas: string[] = parteSan
       headerLeft.fills = [];
       // headerLeft.resize(410, card.height); // Remover resize fixo
       
-      // 1ª linha: Prefixo (ex.: [Constatação]) – sozinho
-      const tagPrefixo = makeText(prefixo || "", "Bold", 20, palette.text);
-      tagPrefixo.textAutoResize = "HEIGHT";
-      tagPrefixo.resize(410, tagPrefixo.height); // usa a própria altura
+      // 1ª linha: Prefixo (ex.: [Hipótese]) – com tag roxa se for hipótese
+      if (prefixo && prefixo.trim()) {
+        // Criar container horizontal para tag roxa
+        const tagContainer = figma.createFrame();
+        tagContainer.layoutMode = "HORIZONTAL";
+        tagContainer.primaryAxisSizingMode = "AUTO";
+        tagContainer.counterAxisSizingMode = "AUTO";
+        tagContainer.itemSpacing = 0;
+        tagContainer.fills = [];
+        
+        // Criar tag roxa para "Hipótese"
+        const tagBadge = figma.createFrame();
+        tagBadge.layoutMode = "HORIZONTAL";
+        tagBadge.primaryAxisSizingMode = "AUTO";
+        tagBadge.counterAxisSizingMode = "AUTO";
+        tagBadge.paddingLeft = 8;
+        tagBadge.paddingRight = 8;
+        tagBadge.paddingTop = 4;
+        tagBadge.paddingBottom = 4;
+        tagBadge.cornerRadius = 6;
+        tagBadge.fills = [{ type: "SOLID", color: { r: 0.58, g: 0.35, b: 0.85 } }]; // Roxo
+        
+        const tagText = figma.createText();
+        tagText.characters = prefixo;
+        tagText.fontName = { family: "Inter", style: "Bold" };
+        tagText.fontSize = 12;
+        tagText.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }]; // Texto branco
+        tagText.textAutoResize = "WIDTH_AND_HEIGHT";
+        
+        tagBadge.appendChild(tagText);
+        tagContainer.appendChild(tagBadge);
+        headerLeft.appendChild(tagContainer);
+      }
 
       // 2ª linha: Título (campo 2) – sem prefixo
       const titleT = makeText(titulo, "Bold", 20, palette.text);
