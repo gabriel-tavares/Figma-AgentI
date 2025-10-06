@@ -524,8 +524,8 @@ async function getRagContext(metodo, vectorStoreId) {
   }
 }
 
-// Agente B - Vision Reviewer com RAG em duas chamadas
-async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
+// Agente B - Vision Reviewer com RAG compartilhado
+async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, ragContext = null) {
   const prompt = loadAgentPrompt('agente-b-vision-reviewer');
   if (!prompt) return null;
   
@@ -536,8 +536,12 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
     
     let finalPrompt = instruction;
     
-    // NOVA ABORDAGEM: Duas chamadas separadas com RAG
-    if (useRag && vectorStoreId) {
+    // USAR CONTEXTO RAG COMPARTILHADO (mais eficiente que buscar novamente)
+    if (ragContext && ragContext.trim()) {
+      logger.info(`🔄 Agente B: Usando contexto RAG compartilhado (${ragContext.length} chars)`);
+      finalPrompt += `\n\nCONTEXTO HEURÍSTICAS VISUAIS:\n${ragContext}`;
+    } else if (useRag && vectorStoreId) {
+      // Fallback: buscar RAG se não foi compartilhado
       logger.info(`🔄 Agente B: Buscando contexto RAG para ${metodo}...`);
       
       // 1ª CHAMADA: Buscar contexto RAG específico para vision
@@ -561,11 +565,11 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false) {
       
       if (ragResponse.ok) {
         const ragResult = await ragResponse.json();
-        const ragContext = ragResult.choices?.[0]?.message?.content;
+        const ragContextFallback = ragResult.choices?.[0]?.message?.content;
         
-        if (ragContext) {
-          logger.info(`🔄 Agente B: Contexto RAG obtido: ${ragContext.length} chars`);
-          finalPrompt += `\n\nCONTEXTO HEURÍSTICAS VISUAIS:\n${ragContext}`;
+        if (ragContextFallback) {
+          logger.info(`🔄 Agente B: Contexto RAG obtido (fallback): ${ragContextFallback.length} chars`);
+          finalPrompt += `\n\nCONTEXTO HEURÍSTICAS VISUAIS:\n${ragContextFallback}`;
         } else {
           logger.warn(`🔄 Agente B: RAG não retornou contexto`);
         }
@@ -751,7 +755,21 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     const [resultA, resultB] = await Promise.allSettled([
       runAgentA(figmaSpec, metodo, vectorStoreId, useRag),
-      imageBase64 ? runAgentB(imageBase64, metodo, vectorStoreId, useRag) : Promise.resolve(null)
+      imageBase64 ? (async () => {
+        // Executar Agente A primeiro para obter RAG, depois Agente B
+        if (useRag && vectorStoreId) {
+          try {
+            logger.info(`🔄 Obtendo contexto RAG para Agente B...`);
+            const ragContextForB = await getRagContext(metodo, vectorStoreId);
+            return await runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContextForB);
+          } catch (ragError) {
+            logger.warn(`🔄 Erro ao obter RAG para Agente B: ${ragError.message}`);
+            return await runAgentB(imageBase64, metodo, vectorStoreId, false, null);
+          }
+        } else {
+          return await runAgentB(imageBase64, metodo, vectorStoreId, useRag, null);
+        }
+      })() : Promise.resolve(null)
     ]);
     
     // Processar resultados do Agente A
