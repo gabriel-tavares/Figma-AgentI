@@ -450,10 +450,19 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       if (content) {
         logger.info(`🔄 Agente A: Content preview: ${typeof content === 'string' ? content.substring(0, 200) : JSON.stringify(content).substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
-        return JSON.parse(cleanContent);
+        const parsedResult = JSON.parse(cleanContent);
+        
+        // Extrair tokens da resposta (Responses API)
+        const tokens = {
+          input: result.usage?.prompt_tokens || 0,
+          output: result.usage?.completion_tokens || 0
+        };
+        
+        return { data: parsedResult, tokens };
       } else {
         logger.warn(`🔄 Agente A: No content found in response`);
         logger.warn(`🔄 Agente A: Full response: ${JSON.stringify(result, null, 2).substring(0, 1000)}...`);
+        return null;
       }
     } else {
       // Usar Chat Completions para GPT-4, etc.
@@ -478,7 +487,15 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       
       if (content) {
         const cleanContent = stripCodeFence(content);
-        return JSON.parse(cleanContent);
+        const parsedResult = JSON.parse(cleanContent);
+        
+        // Extrair tokens da resposta (Chat Completions API)
+        const tokens = {
+          input: result.usage?.prompt_tokens || 0,
+          output: result.usage?.completion_tokens || 0
+        };
+        
+        return { data: parsedResult, tokens };
       }
     }
     
@@ -617,7 +634,15 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
       logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
       logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
       const cleanContent = stripCodeFence(content);
-      return JSON.parse(cleanContent);
+      const parsedResult = JSON.parse(cleanContent);
+      
+      // Extrair tokens da resposta
+      const tokens = {
+        input: visionResult.usage?.prompt_tokens || 0,
+        output: visionResult.usage?.completion_tokens || 0
+      };
+      
+      return { data: parsedResult, tokens };
     } else {
       logger.warn(`🔄 Agente B: No content in vision response`);
       return null;
@@ -690,7 +715,15 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       if (content) {
         logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
         const cleanContent = stripCodeFence(content);
-        return JSON.parse(cleanContent);
+        const parsedResult = JSON.parse(cleanContent);
+        
+        // Extrair tokens da resposta (Responses API)
+        const tokens = {
+          input: result.usage?.prompt_tokens || 0,
+          output: result.usage?.completion_tokens || 0
+        };
+        
+        return { data: parsedResult, tokens };
       }
     } else {
       // Usar Chat Completions para GPT-4, etc.
@@ -728,7 +761,15 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
         logger.info(`🔄 Agente C: Content preview: ${content.substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
-        return JSON.parse(cleanContent);
+        const parsedResult = JSON.parse(cleanContent);
+        
+        // Extrair tokens da resposta (Chat Completions API)
+        const tokens = {
+          input: result.usage?.prompt_tokens || 0,
+          output: result.usage?.completion_tokens || 0
+        };
+        
+        return { data: parsedResult, tokens };
       }
     }
     
@@ -751,6 +792,11 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
   
   // Timers detalhados
   let timeRAG = 0, timeAgenteA = 0, timeAgenteB = 0, timeAgenteC = 0;
+  
+  // Tracking de tokens
+  let tokensA = { input: 0, output: 0 };
+  let tokensB = { input: 0, output: 0 };
+  let tokensC = { input: 0, output: 0 };
   
   try {
     // NOVA ESTRATÉGIA: Extrair RAG primeiro, depois executar A e B em paralelo
@@ -776,8 +822,22 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     const agenteBStart = performance.now();
     
     const [resultA, resultB] = await Promise.allSettled([
-      runAgentA(figmaSpec, metodo, vectorStoreId, useRag),
-      imageBase64 ? runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContext) : Promise.resolve(null)
+      (async () => {
+        const result = await runAgentA(figmaSpec, metodo, vectorStoreId, useRag);
+        if (result && result.tokens) {
+          tokensA = result.tokens;
+          return result.data;
+        }
+        return result;
+      })(),
+      imageBase64 ? (async () => {
+        const result = await runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContext);
+        if (result && result.tokens) {
+          tokensB = result.tokens;
+          return result.data;
+        }
+        return result;
+      })() : Promise.resolve(null)
     ]);
     
     timeAgenteA = performance.now() - agenteAStart;
@@ -785,7 +845,12 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     // Processar resultados do Agente A
     if (resultA.status === 'fulfilled' && resultA.value) {
-      achadosA = resultA.value;
+      if (resultA.value.data) {
+        achadosA = resultA.value.data;
+        tokensA = resultA.value.tokens;
+      } else {
+        achadosA = resultA.value;
+      }
       logger.info(`   ✅ Agente A: ${achadosA.achados?.length || 0} achados`);
     } else {
       logger.warn(`   ⚠️ Agente A falhou: ${resultA.reason?.message || 'erro desconhecido'}`);
@@ -794,7 +859,12 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     // Processar resultados do Agente B
     if (resultB.status === 'fulfilled' && resultB.value) {
-      achadosB = resultB.value;
+      if (resultB.value.data) {
+        achadosB = resultB.value.data;
+        tokensB = resultB.value.tokens;
+      } else {
+        achadosB = resultB.value;
+      }
       logger.info(`   ✅ Agente B: ${achadosB.achados?.length || 0} achados`);
     } else {
       if (imageBase64) {
@@ -826,7 +896,13 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     // Executar Agente C (Reconciler)
     logger.info(`   🔄 Executando Agente C (Reconciler)...`);
     const agenteCStart = performance.now();
-    achadosFinal = await runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag, ragContext);
+    const resultC = await runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag, ragContext);
+    if (resultC && resultC.tokens) {
+      tokensC = resultC.tokens;
+      achadosFinal = resultC.data;
+    } else {
+      achadosFinal = resultC;
+    }
     timeAgenteC = performance.now() - agenteCStart;
     
     if (achadosFinal && achadosFinal.achados?.length > 0) {
@@ -849,9 +925,15 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     // Logs detalhados de performance por agente
     logger.info(`[ITEM ${group}] Timer Detalhado:`);
     logger.info(`   📊 RAG: ${(timeRAG / 1000).toFixed(2)}s`);
-    logger.info(`   🔄 Agente A (JSON): ${(timeAgenteA / 1000).toFixed(2)}s → ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'}`);
-    logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'}`);
-    logger.info(`   🔄 Agente C (Reconciler): ${(timeAgenteC / 1000).toFixed(2)}s → ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'}`);
+    logger.info(`   🔄 Agente A (JSON): ${(timeAgenteA / 1000).toFixed(2)}s → ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'} | Tokens: ${tokensA.input}→${tokensA.output}`);
+    logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'} | Tokens: ${tokensB.input}→${tokensB.output}`);
+    logger.info(`   🔄 Agente C (Reconciler): ${(timeAgenteC / 1000).toFixed(2)}s → ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'} | Tokens: ${tokensC.input}→${tokensC.output}`);
+    
+    const totalTokensInput = tokensA.input + tokensB.input + tokensC.input;
+    const totalTokensOutput = tokensA.output + tokensB.output + tokensC.output;
+    const totalTokens = totalTokensInput + totalTokensOutput;
+    
+    logger.info(`   💰 Tokens TOTAL: ${totalTokensInput} entrada + ${totalTokensOutput} saída = ${totalTokens} total`);
     logger.info(`   ⏱️ Tempo total orquestração: ${(totalTime / 1000).toFixed(2)}s`);
     
     return achadosFinal;
