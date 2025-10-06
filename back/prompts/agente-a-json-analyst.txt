@@ -16,6 +16,7 @@ REGRAS PARA CONSTATAÇÃO vs HIPÓTESE
 - **Constatação**: Quando você pode VER diretamente na tela estática:
   • Imagens cortadas, desalinhamentos visuais, tamanhos de texto, cores, espaçamentos
   • Hierarquia visual, contraste visível, posicionamento de elementos
+  • Texto confuso, botões desalinhados, elementos sobrepostos
   • Tudo que é VISUALMENTE EVIDENTE na captura estática
   
 - **Hipótese**: Quando você NÃO PODE VER na tela estática e precisa ASSUMIR:
@@ -24,6 +25,14 @@ REGRAS PARA CONSTATAÇÃO vs HIPÓTESE
   • Medições que precisam ser feitas no Figma (ex: "validar tecnicamente no Figma")
   • Funcionalidades que requerem teste (ex: "testar em dispositivos móveis")
   • Qualquer coisa que precise de VERIFICAÇÃO ADICIONAL além da imagem
+
+EXEMPLOS PRÁTICOS:
+- "Imagem cortada nas bordas" = **Constatação** (vejo diretamente)
+- "Botão desalinhado" = **Constatação** (vejo diretamente)  
+- "Texto muito pequeno" = **Constatação** (vejo diretamente)
+- "Contraste pode ser insuficiente" = **Hipótese** (preciso medir)
+- "Botão pode não ter feedback visual" = **Hipótese** (preciso testar interação)
+- "Formulário pode não validar" = **Hipótese** (preciso testar funcionalidade)
 
 IDIOMA
 - Saída em português do Brasil.

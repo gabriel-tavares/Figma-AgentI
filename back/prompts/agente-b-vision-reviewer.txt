@@ -43,6 +43,7 @@ REGRAS PARA CONSTATAÇÃO vs HIPÓTESE
 - **Constatação**: O que você VÊ diretamente na imagem:
   • Contraste visível, cores, tamanhos, alinhamentos
   • Elementos cortados, sobreposições, hierarquia visual
+  • Texto confuso, botões desalinhados, espaçamentos inadequados
   • Tudo VISUALMENTE EVIDENTE na captura
   
 - **Hipótese**: O que você NÃO PODE VER e precisa ASSUMIR:
@@ -50,6 +51,13 @@ REGRAS PARA CONSTATAÇÃO vs HIPÓTESE
   • Medições precisas que precisam ser feitas no Figma
   • Comportamentos que requerem teste adicional
   • Funcionalidades não visíveis na imagem estática
+
+EXEMPLOS PRÁTICOS:
+- "Imagem cortada" = **Constatação** (vejo na imagem)
+- "Botão desalinhado" = **Constatação** (vejo na imagem)
+- "Contraste baixo visível" = **Constatação** (vejo na imagem)
+- "Botão pode não ter feedback" = **Hipótese** (preciso testar)
+- "Contraste precisa ser medido" = **Hipótese** (preciso medir)
 
 Importante
 - Esta saída é INTERNA ao orquestrador (será mesclada pelo Reconciler).

@@ -9,12 +9,21 @@ Regras de conciliação
 3) Quando A e B tratarem do mesmo tema, mesclar e manter a descrição mais clara e prática.
 
 REGRAS CRÍTICAS PARA CONSTATAÇÃO vs HIPÓTESE:
-- **Constatação**: Evidência VISUAL DIRETA na tela (imagens cortadas, cores, tamanhos, alinhamentos)
+- **Constatação**: Evidência VISUAL DIRETA na tela (imagens cortadas, cores, tamanhos, alinhamentos, texto confuso, botões desalinhados)
 - **Hipótese**: Requer VERIFICAÇÃO ADICIONAL:
   • "Validar tecnicamente no Figma" = HIPÓTESE
   • "Medir contraste" = HIPÓTESE  
   • Estados interativos não visíveis = HIPÓTESE
   • Qualquer coisa que precise de teste/medição = HIPÓTESE
+
+EXEMPLOS OBRIGATÓRIOS:
+- "Imagem cortada e desalinhada" = **Constatação** (vejo diretamente)
+- "Botão desalinhado" = **Constatação** (vejo diretamente)
+- "Espaçamento inadequado" = **Constatação** (vejo diretamente)
+- "Texto confuso" = **Constatação** (vejo diretamente)
+- "Hierarquia bem definida" = **Constatação** (vejo diretamente)
+- "Contraste possivelmente insuficiente" = **Hipótese** (preciso medir)
+- "Feedback visual ausente" = **Hipótese** (preciso testar interação)
 4) Priorizar: (i) acessibilidade/legibilidade; (ii) ação principal/CTA; (iii) consistência.
 5) Linguagem humana, PT-BR, sem jargão técnico (PROIBIDO: JSON, bounds, xPx, yPx, widthPx, 
    heightPx, marginLeftPx, paddingLeftPx, contrastPairs, approx, true/false, canvas x≥0 y≥0, 
