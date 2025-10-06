@@ -749,11 +749,15 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
   let achadosA = null, achadosB = null, achadosFinal = null;
   let ragContext = null; // Para compartilhar entre agentes
   
+  // Timers detalhados
+  let timeRAG = 0, timeAgenteA = 0, timeAgenteB = 0, timeAgenteC = 0;
+  
   try {
     // NOVA ESTRATÉGIA: Extrair RAG primeiro, depois executar A e B em paralelo
     logger.info(`   🔄 Extraindo contexto RAG para compartilhamento...`);
     
     if (useRag && vectorStoreId) {
+      const ragStart = performance.now();
       try {
         ragContext = await getRagContext(metodo, vectorStoreId);
         if (ragContext) {
@@ -762,15 +766,22 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
       } catch (ragError) {
         logger.warn(`🔄 Erro ao extrair RAG: ${ragError.message}`);
       }
+      timeRAG = performance.now() - ragStart;
     }
     
     // Executar Agente A e B em paralelo (ambos com RAG compartilhado)
     logger.info(`   🔄 Executando Agente A (JSON) e B (Vision) em paralelo...`);
     
+    const agenteAStart = performance.now();
+    const agenteBStart = performance.now();
+    
     const [resultA, resultB] = await Promise.allSettled([
       runAgentA(figmaSpec, metodo, vectorStoreId, useRag),
       imageBase64 ? runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContext) : Promise.resolve(null)
     ]);
+    
+    timeAgenteA = performance.now() - agenteAStart;
+    timeAgenteB = imageBase64 ? performance.now() - agenteBStart : 0;
     
     // Processar resultados do Agente A
     if (resultA.status === 'fulfilled' && resultA.value) {
@@ -814,7 +825,9 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     
     // Executar Agente C (Reconciler)
     logger.info(`   🔄 Executando Agente C (Reconciler)...`);
+    const agenteCStart = performance.now();
     achadosFinal = await runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag, ragContext);
+    timeAgenteC = performance.now() - agenteCStart;
     
     if (achadosFinal && achadosFinal.achados?.length > 0) {
       logger.info(`   ✅ Agente C: ${achadosFinal.achados.length} achados finais`);
@@ -834,10 +847,11 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     logger.info(`   🎭 Orquestrador concluído: ${(totalTime / 1000).toFixed(2)}s`);
     
     // Logs detalhados de performance por agente
-    logger.info(`[ITEM ${group}] Timer Agentes:`);
-    logger.info(`   🔄 Agente A (JSON): ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'}`);
-    logger.info(`   🔄 Agente B (Vision): ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'}`);
-    logger.info(`   🔄 Agente C (Reconciler): ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'}`);
+    logger.info(`[ITEM ${group}] Timer Detalhado:`);
+    logger.info(`   📊 RAG: ${(timeRAG / 1000).toFixed(2)}s`);
+    logger.info(`   🔄 Agente A (JSON): ${(timeAgenteA / 1000).toFixed(2)}s → ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'}`);
+    logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'}`);
+    logger.info(`   🔄 Agente C (Reconciler): ${(timeAgenteC / 1000).toFixed(2)}s → ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'}`);
     logger.info(`   ⏱️ Tempo total orquestração: ${(totalTime / 1000).toFixed(2)}s`);
     
     return achadosFinal;

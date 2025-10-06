@@ -1307,8 +1307,8 @@ const linhas: string[] = parteSan
       headerLeft.fills = [];
       // headerLeft.resize(410, card.height); // Remover resize fixo
       
-      // 1ª linha: Prefixo (ex.: [Hipótese]) – com tag roxa se for hipótese
-      if (prefixo && prefixo.trim()) {
+      // 1ª linha: Prefixo (ex.: [Hipótese]) – só exibir tag roxa para hipótese
+      if (prefixo && prefixo.trim() && prefixo.toLowerCase().includes('hipótese')) {
         // Criar container horizontal para tag roxa
         const tagContainer = figma.createFrame();
         tagContainer.layoutMode = "HORIZONTAL";
@@ -1330,7 +1330,7 @@ const linhas: string[] = parteSan
         tagBadge.fills = [{ type: "SOLID", color: { r: 0.58, g: 0.35, b: 0.85 } }]; // Roxo
         
         const tagText = figma.createText();
-        tagText.characters = prefixo;
+        tagText.characters = "Hipótese";
         tagText.fontName = { family: "Inter", style: "Bold" };
         tagText.fontSize = 12;
         tagText.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }]; // Texto branco
