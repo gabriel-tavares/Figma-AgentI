@@ -72,10 +72,23 @@ REGRAS PARA OVERFLOW DE IMAGEM:
 
 - **Caso duvidoso**: "Hipótese" + severidade "baixo"
 
-EXEMPLOS PRÁTICOS:
-- ✅ **Não reportar**: Imagem café full-bleed, centralizada, sem cobrir texto
-- ❌ **Reportar**: Imagem corta rosto ou sobrepõe botão
-- 🤔 **Hipótese**: Overflow moderado, validar intenção
+DETECÇÃO DE ALINHAMENTO VISUAL (botões):
+- **Tarefa crítica**: Detectar bounding boxes do botão principal e do rótulo dentro dele
+- **Cálculo**: Delta percentual entre os centros no eixo X (visual_center_delta_pct)
+- **Simetria**: Estimar padding esquerda vs direita pelo espaço livre aos lados do texto
+- **Critério de centragem**: delta ≤ 3% da largura do botão; assimetria ≤ 4px
+
+SINAIS VISUAIS PARA REPORTAR:
+- render_button_bbox: posição e tamanho do botão
+- render_text_bbox: posição e tamanho do texto
+- visual_center_delta_pct: diferença entre centros (%)
+- padding_symmetry_delta_px: assimetria de padding
+- ocr_text: texto reconhecido (se possível)
+
+CRITÉRIO DE CENTRAGEM ACEITÁVEL:
+- Delta ≤ 3% da largura do botão
+- Assimetria de padding ≤ 4px
+- Se atender ambos = "centrado visualmente" (mesmo que JSON diga "left")
 
 Importante
 - Esta saída é INTERNA ao orquestrador (será mesclada pelo Reconciler).

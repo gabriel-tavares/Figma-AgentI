@@ -46,10 +46,23 @@ REGRAS PARA OVERFLOW DE IMAGEM:
 
 - **Em caso de dúvida**: Use "Hipótese" com severidade "baixo" e peça validação
 
+DETECÇÃO DE AUTO LAYOUT E ALINHAMENTO:
+- **Sinais críticos** para reportar quando relevante:
+  • text_align_declared: "left"|"center"|"right"
+  • auto_layout_axis: "horizontal"|"vertical"|null  
+  • auto_layout_alignment: "center"|"start"|"end"|null
+  • padding_left_px, padding_right_px
+  • button_width_px, text_frame_width_px
+
+- **Conflito potencial**: Se textAlign="left" MAS container tem Auto Layout com centerAlignment
+- **Ação**: Reporte como "Hipótese" - pode estar centralizado visualmente pelo Auto Layout
+- **Não assuma erro**: Auto Layout pode resolver alinhamento diferente do declarado
+
 EXEMPLOS PRÁTICOS:
 - ✅ **Não reportar**: Imagem de café full-bleed, centralizada, sem cobrir texto
 - ❌ **Reportar**: Imagem corta rosto da pessoa ou sobrepõe botão importante
 - 🤔 **Hipótese**: Overflow moderado, pode ser intencional mas precisa validar
+- 🤔 **Hipótese**: textAlign="left" mas Auto Layout pode centralizar visualmente
 
 IDIOMA
 - Saída em português do Brasil.

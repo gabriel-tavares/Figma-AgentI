@@ -37,12 +37,28 @@ EXEMPLOS DE REESCRITA:
 ✅ "Imagem em full-bleed valoriza impacto visual" (positiva)
 ✅ "Corte parece intencional; validar em outros tamanhos" (hipótese/baixo)
 
-CASO ESPECÍFICO - IMAGEM DE CAFÉ:
-Se for imagem de café/produto ocupando toda tela, centralizada, sem cobrir texto:
-- NÃO reportar como erro
-- OPÇÃO 1: Não emitir card
-- OPÇÃO 2: Card positivo: "Imagem em full-bleed cria impacto visual"
-- OPÇÃO 3: Se duvidoso: "Corte parece intencional" (hipótese/baixo)
+RESOLUÇÃO DE CONFLITOS (alinhamento de rótulo em botão):
+- **Compare** o centro visual do texto no render com o centro do botão
+- **Tolerâncias**: ≤ 3% da largura do botão E assimetria de padding ≤ 4px
+- **Se dentro das tolerâncias**: considere "centrado visualmente", mesmo que JSON traga textAlign:"left"
+- **Ação**: NÃO emita card de erro. Opcional: "Nota técnica (baixo)" ou card positivo
+- **Se fora das tolerâncias**: emita "desalinhado" quando render mostrar deslocamento real
+- **Se render falhar**: trate como "Hipótese" (baixo) com validação no Figma
+
+POLÍTICA DE CONFLITO A vs B:
+- **A diz "left" + B confirma centragem visual** → SUPRIMIR card de erro
+- **A diz "left" + B detecta desalinhamento real** → MANTER card de erro
+- **B não consegue medir** → Downgrade para Hipótese (baixo)
+
+EXEMPLO PARA BOTÃO CENTRALIZADO VISUALMENTE:
+```json
+{
+  "titulo_card": "Botão principal com rótulo centralizado",
+  "severidade": "positiva",
+  "descricao": "No render, o texto está centralizado. A declaração 'left' no código é resolvida pelo Auto Layout.",
+  "sugestao_melhoria": "Opcional: alinhar propriedade declarada ao comportamento real."
+}
+```
 4) Priorizar: (i) acessibilidade/legibilidade; (ii) ação principal/CTA; (iii) consistência.
 5) Linguagem humana, PT-BR, sem jargão técnico (PROIBIDO: JSON, bounds, xPx, yPx, widthPx, 
    heightPx, marginLeftPx, paddingLeftPx, contrastPairs, approx, true/false, canvas x≥0 y≥0, 
