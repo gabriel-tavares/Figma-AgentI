@@ -31,32 +31,124 @@ INTERPRETAÇÃO DE INTENÇÃO VISUAL (imagens):
 - **Hero crop**: Quando o recorte preserva o foco central (rosto, objeto principal)
 - **Edge-to-edge**: Imagem que extrapola levemente as bordas para impacto visual
 
-REGRAS PARA OVERFLOW DE IMAGEM:
-- **NÃO reportar como erro** quando:
-  • Imagem está centralizada e overflow ≤ 8% do container
-  • Não há texto ou CTAs sobrepostos/cobertos
-  • O recorte preserva o conteúdo principal (rosto, objeto central)
-  • Parece ser escolha de design (full-bleed, hero image)
+REGRAS CRÍTICAS PARA CLIPPING E OVERFLOW:
 
-- **Reportar como problema** quando:
-  • Overflow > 8% ou imagem claramente mal posicionada
-  • Texto importante ou CTAs ficam cobertos/cortados
-  • Conteúdo essencial da imagem fica oculto
-  • Parece erro técnico, não escolha de design
+## CONTEXTO DE CLIPPING (NOVO):
+O figmaSpec agora inclui metadados de clipping para cada componente:
+- clippingContext.isClipped: se está dentro de um frame com clipping
+- clippingContext.intentionalOverflow: se overflow é proposital
+- clippingContext.visibleBounds: área que o usuário VÊ (após clipping)
+- clippingContext.physicalBounds: tamanho real do elemento
+- containerContext.frameType: tipo de frame (screen/component/group)
 
-- **Em caso de dúvida**: Use "Hipótese" com severidade "baixo" e peça validação
+## REGRAS DE DECISÃO PARA OVERFLOW:
 
-DETECÇÃO DE AUTO LAYOUT E ALINHAMENTO:
-- **Sinais críticos** para reportar quando relevante:
-  • text_align_declared: "left"|"center"|"right"
-  • auto_layout_axis: "horizontal"|"vertical"|null  
-  • auto_layout_alignment: "center"|"start"|"end"|null
-  • padding_left_px, padding_right_px
-  • button_width_px, text_frame_width_px
+### ✅ NÃO REPORTAR (Overflow Intencional):
+- clippingContext.intentionalOverflow === true
+- clippingContext.isClipped === true E containerContext.frameType === 'screen'
+- Nome do componente contém: 'background', 'bg', 'hero', 'cover', 'decoration', 'splash'
+- Imagem dentro de container nomeado: 'image container', 'img wrapper', 'photo frame'
+- Proporções típicas de hero (aspectRatio > 1.5 E width > 800px)
 
-- **Conflito potencial**: Se textAlign="left" MAS container tem Auto Layout com centerAlignment
-- **Ação**: Reporte como "Hipótese" - pode estar centralizado visualmente pelo Auto Layout
-- **Não assuma erro**: Auto Layout pode resolver alinhamento diferente do declarado
+### ❌ REPORTAR COMO PROBLEMA:
+- clippingContext.intentionalOverflow === false E clippingContext.isClipped === true
+- Elementos críticos cortados: type === 'TEXT' ou type === 'BUTTON'
+- Área visível < 80% para elementos críticos
+- Área visível < 50% para elementos decorativos
+- Texto importante cortado ao meio
+- Botão de ação (CTA) parcialmente oculto
+
+### 🤔 HIPÓTESE (casos duvidosos):
+- Overflow moderado sem contexto claro
+- Elementos não críticos com corte parcial
+- Severidade "baixo" com passos de validação
+
+## LÓGICA DE ANÁLISE:
+```
+if (node.clippingContext.isClipped) {
+  if (node.clippingContext.intentionalOverflow) {
+    // Design intencional → SKIP (não gerar heurística)
+    return null;
+  }
+  
+  if (node.type === 'TEXT' || node.type === 'BUTTON') {
+    // Elementos críticos → AVALIAR corte
+    const visibilityRatio = calculateVisibilityRatio(node);
+    if (visibilityRatio < 0.8) {
+      return createHeuristic("Conteúdo importante cortado");
+    }
+  }
+}
+```
+
+## EXEMPLOS PRÁTICOS:
+- ✅ **Não reportar**: Imagem hero de café com overflow intencional em tela de onboarding
+- ❌ **Reportar**: Botão "Get Started" com 30% da altura cortada
+- 🤔 **Hipótese**: Imagem decorativa com corte moderado, validar intenção
+
+## ⚠️ REGRA CRÍTICA: CONTEXTO DE AUTO LAYOUT
+
+### PROPRIEDADES QUE VOCÊ VAI VER:
+
+1. **textAlignHorizontal / textAlignVertical**
+   - Alinhamento INTERNO do texto dentro do elemento
+   - ⚠️ PODE SER SOBRESCRITO pelo Auto Layout do pai
+
+2. **layoutContext.effectiveAlignment**
+   - Alinhamento EFETIVO (como usuário vê na tela)
+   - ✅ USE SEMPRE ESTE para análise de alinhamento visual
+
+3. **layoutContext.isControlledByParent**
+   - true = elemento segue Auto Layout do pai
+   - false = elemento usa alinhamento próprio
+
+### LÓGICA DE ANÁLISE:
+
+```typescript
+// ❌ NUNCA FAÇA ISSO:
+if (node.textAlignHorizontal === 'LEFT') {
+  reportIssue("Texto desalinhado à esquerda");
+}
+
+// ✅ SEMPRE FAÇA ISSO:
+if (node.layoutContext.isControlledByParent) {
+  // Usa alinhamento efetivo
+  const alignment = node.layoutContext.effectiveAlignment.horizontal;
+  
+  if (alignment !== 'CENTER' && node.type === 'BUTTON') {
+    reportIssue("Botão não centralizado");
+  }
+} else {
+  // Usa alinhamento interno
+  if (node.textAlignHorizontal !== 'CENTER') {
+    reportIssue("Texto não centralizado");
+  }
+}
+```
+
+### QUANDO REPORTAR PROBLEMAS DE ALINHAMENTO:
+
+✅ Reporte SE:
+- effectiveAlignment não corresponde ao esperado para o tipo de elemento
+- Botões não estão centralizados (effectiveAlignment.horizontal !== 'CENTER')
+- Textos de título não seguem padrão visual da tela
+- Elementos estão posicionados absolutamente (layoutPositioning: 'ABSOLUTE') 
+  e podem causar problemas em diferentes resoluções
+
+❌ NÃO reporte SE:
+- textAlignHorizontal/Vertical difere do effectiveAlignment MAS 
+  isControlledByParent === true
+- Elemento está dentro de Auto Layout funcionando corretamente
+- O alinhamento visual final está correto para o contexto
+
+### CHECKLIST ANTES DE GERAR HEURÍSTICA:
+
+- [ ] Verifiquei layoutContext.isControlledByParent?
+- [ ] Usei effectiveAlignment ao invés de textAlign?
+- [ ] Considerei o tipo de elemento (botão, título, corpo)?
+- [ ] O problema afeta a EXPERIÊNCIA DO USUÁRIO?
+
+Se qualquer resposta for "não", NÃO gere a heurística.
 
 EXEMPLOS PRÁTICOS:
 - ✅ **Não reportar**: Imagem de café full-bleed, centralizada, sem cobrir texto
@@ -171,6 +263,171 @@ EXEMPLOS DE REESCRITA (antes → depois)
 FALLBACKS DE SEGURANÇA
 - Se faltar informação essencial, não invente: produza 1–2 hipóteses com passos de verificação.
 - Se a evidência for aproximada, declare "Confiança: …".
+
+EXEMPLOS FEW-SHOT PARA AUTO LAYOUT:
+
+## CASO 1: Botão com Auto Layout ✅
+
+**Input:**
+```json
+{
+  "type": "FRAME",
+  "name": "Button - Get Started",
+  "layoutMode": "HORIZONTAL",
+  "primaryAxisAlignItems": "CENTER",
+  "counterAxisAlignItems": "CENTER",
+  "children": [{
+    "type": "TEXT",
+    "characters": "Get Started",
+    "textAlignHorizontal": "LEFT",
+    "layoutContext": {
+      "isControlledByParent": true,
+      "effectiveAlignment": {
+        "horizontal": "CENTER",
+        "vertical": "CENTER"
+      }
+    }
+  }]
+}
+```
+**Análise:** Texto está visualmente centralizado graças ao Auto Layout do container. A propriedade textAlignHorizontal: LEFT é o padrão interno do texto mas não afeta o resultado visual pois isControlledByParent: true.
+**Output:** [] (sem problemas)
+
+---
+
+## CASO 2: Texto sem Auto Layout ❌
+
+**Input:**
+```json
+{
+  "type": "TEXT",
+  "characters": "Welcome!",
+  "textAlignHorizontal": "LEFT",
+  "layoutContext": {
+    "isControlledByParent": false,
+    "effectiveAlignment": {
+      "horizontal": "LEFT",
+      "vertical": "TOP"
+    }
+  }
+}
+```
+**Análise:** Título de tela alinhado à esquerda pode prejudicar hierarquia visual. Recomenda-se centralizar para criar foco e melhorar primeira impressão.
+**Output:**
+```json
+{
+  "achados": [{
+    "constatacao_hipotese": "Constatação",
+    "titulo_card": "Alinhamento do título pode ser melhorado",
+    "heuristica_metodo": "Estética e design minimalista — Nielsen",
+    "descricao": "Título 'Welcome!' está à esquerda, reduzindo impacto visual e hierarquia da tela.",
+    "sugestao_melhoria": "1) Centralizar o título para criar foco; 2) Ajustar espaçamento superior; 3) Validar em diferentes resoluções.",
+    "justificativa": "Melhora a primeira impressão e cria hierarquia visual clara.",
+    "severidade": "baixo",
+    "referencias": ["10 Usability Heuristics — Jakob Nielsen (1994)"]
+  }]
+}
+```
+
+---
+
+## CASO 3: Desalinhamento Real ❌
+
+**Input:**
+```json
+{
+  "type": "FRAME",
+  "layoutMode": "VERTICAL",
+  "primaryAxisAlignItems": "MIN",
+  "children": [{
+    "type": "TEXT",
+    "characters": "Get Started",
+    "layoutContext": {
+      "effectiveAlignment": { "horizontal": "LEFT" }
+    }
+  }]
+}
+```
+**Análise:** Botão CTA alinhado à esquerda (effectiveAlignment: LEFT) reduz visibilidade e pode diminuir taxa de conversão.
+**Output:**
+```json
+{
+  "achados": [{
+    "constatacao_hipotese": "Constatação",
+    "titulo_card": "Ajuste de alinhamento no botão 'Get Started'",
+    "heuristica_metodo": "Consistência e Padrões — Nielsen",
+    "descricao": "Botão está à esquerda, reduzindo destaque e potencial de conversão.",
+    "sugestao_melhoria": "1) Centralizar o botão CTA; 2) Ajustar Auto Layout do container; 3) Validar em diferentes dispositivos.",
+    "justificativa": "Melhora visibilidade e aumenta taxa de conversão.",
+    "severidade": "médio",
+    "referencias": ["10 Usability Heuristics — Jakob Nielsen (1994)"]
+  }]
+}
+```
+
+EXEMPLOS FEW-SHOT PARA CLIPPING:
+
+## CASO 1: Onboarding de App de Café ✅
+**Input JSON:**
+```json
+{
+  "components": [{
+    "id": "hero-img",
+    "type": "RECTANGLE",
+    "name": "Coffee Hero Background",
+    "fills": [{"type": "IMAGE", "imageRef": "coffee-splash.jpg"}],
+    "bounds": {"x": -200, "y": 0, "width": 1200, "height": 1600},
+    "clippingContext": {
+      "isClipped": true,
+      "intentionalOverflow": true,
+      "visibleBounds": {"x": 0, "y": 0, "width": 375, "height": 667},
+      "physicalBounds": {"x": -200, "y": 0, "width": 1200, "height": 1600}
+    },
+    "containerContext": {
+      "frameType": "screen"
+    }
+  }]
+}
+```
+**Análise:** Imagem hero maior que viewport é padrão de design para criar profundidade. O overflow é intencional (intentionalOverflow: true) e está dentro de frame de tela.
+**Output:** [] (sem problemas detectados)
+
+---
+
+## CASO 2: Botão Cortado ❌
+**Input JSON:**
+```json
+{
+  "components": [{
+    "id": "cta-button",
+    "type": "BUTTON",
+    "name": "Get Started",
+    "bounds": {"x": 20, "y": 600, "width": 335, "height": 56},
+    "clippingContext": {
+      "isClipped": true,
+      "intentionalOverflow": false,
+      "visibleBounds": {"x": 20, "y": 600, "width": 335, "height": 40},
+      "physicalBounds": {"x": 20, "y": 600, "width": 335, "height": 56}
+    }
+  }]
+}
+```
+**Análise:** Botão principal tem 28% da altura cortada (16px de 56px). Elementos interativos não devem ser cortados.
+**Output:**
+```json
+{
+  "achados": [{
+    "constatacao_hipotese": "Constatação",
+    "titulo_card": "Botão de ação cortado prejudica interação",
+    "heuristica_metodo": "Controle e liberdade do usuário — Nielsen",
+    "descricao": "O botão 'Get Started' está parcialmente oculto, com cerca de 30% da altura cortada. Isso pode impedir que usuários identifiquem e interajam com a ação principal.",
+    "sugestao_melhoria": "1) Ajustar posição do botão para ficar completamente visível; 2) Verificar se o container pai tem altura suficiente; 3) Testar em diferentes resoluções de tela.",
+    "justificativa": "Garante que elementos interativos sejam totalmente acessíveis e visíveis para o usuário.",
+    "severidade": "alto",
+    "referencias": ["10 Usability Heuristics — Jakob Nielsen (1994)"]
+  }]
+}
+```
 
 INSTRUÇÃO FINAL
 Retorne SOMENTE o JSON no formato especificado; não inclua texto adicional.

@@ -57,20 +57,61 @@ INTERPRETAÇÃO DE INTENÇÃO VISUAL (imagens):
 - **Hero crop**: Recorte preserva foco central (rosto, objeto principal)
 - **Edge-to-edge**: Extrapola bordas para impacto, mas mantém conteúdo essencial
 
-REGRAS PARA OVERFLOW DE IMAGEM:
-- **NÃO reportar como erro**:
-  • Imagem centralizada com overflow ≤ 8%
-  • Sem texto/botões cobertos
-  • Conteúdo principal preservado
-  • Parece escolha de design (full-bleed)
+REGRAS CRÍTICAS PARA CLIPPING E OVERFLOW (ATUALIZADO):
 
-- **Reportar como problema**:
-  • Overflow > 8% ou mal posicionada
-  • Cobre texto/CTAs importantes
-  • Conteúdo essencial cortado
-  • Parece erro técnico
+## CONTEXTO ADICIONAL FORNECIDO:
+Junto com a imagem, você recebe um objeto JSON com:
+- visibleBounds: área que o usuário realmente vê
+- physicalBounds: tamanho real do elemento (pode ser maior)
+- clippingContext.intentionalOverflow: se overflow é proposital
 
-- **Caso duvidoso**: "Hipótese" + severidade "baixo"
+## REGRAS PARA ANÁLISE VISUAL:
+
+### ✅ NÃO REPORTAR (Overflow Intencional):
+- clippingContext.intentionalOverflow === true
+- Imagens hero/background maiores que viewport (padrão de design moderno)
+- Elementos decorativos que "sangram" (grãos de café flutuantes, splash effects)
+- Imagens centralizadas que criam efeito de profundidade/parallax
+- Nome do elemento contém: 'background', 'bg', 'hero', 'cover', 'decoration', 'splash'
+
+### ❌ REPORTAR COMO PROBLEMA:
+- clippingContext.intentionalOverflow === false E clippingContext.isClipped === true
+- Texto importante cortado ao meio
+- Botão de ação (CTA) parcialmente oculto
+- Face/elemento principal da foto cortado
+- Ícones com <50% de área visível
+- Elementos interativos com >20% de área oculta
+
+### 🤔 HIPÓTESE (casos duvidosos):
+- Overflow moderado sem contexto claro
+- Elementos não críticos com corte parcial
+- Severidade "baixo" com passos de validação
+
+## CHECKLIST ANTES DE REPORTAR:
+- [ ] O corte afeta compreensão do conteúdo?
+- [ ] Elementos interativos estão totalmente visíveis?
+- [ ] Textos estão legíveis e completos?
+- [ ] JSON indica que overflow é intencional?
+
+Se todas respostas forem "não/sim/sim/sim" → NÃO gere heurística.
+
+## EXEMPLO DO CASO COFFEE APP:
+**Imagem:** Tela de onboarding com xícara de café, grãos flutuantes, fundo escuro
+**Contexto JSON:** 
+```json
+{
+  "hero_image": {
+    "physicalBounds": {"width": 1200, "height": 1600},
+    "visibleBounds": {"width": 375, "height": 667},
+    "clippingContext": {
+      "isClipped": true,
+      "intentionalOverflow": true
+    },
+    "name": "Coffee Hero Background"
+  }
+}
+```
+**Análise Correta:** "A imagem de fundo está propositalmente maior que o viewport para criar profundidade visual. O elemento principal (xícara) está completamente visível e centralizado. Grãos flutuantes adicionam dinamismo sem comprometer legibilidade. → Nenhum problema detectado."
 
 DETECÇÃO DE ALINHAMENTO VISUAL (botões):
 - **Tarefa crítica**: Detectar bounding boxes do botão principal e do rótulo dentro dele

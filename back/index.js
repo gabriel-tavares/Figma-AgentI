@@ -52,6 +52,67 @@ const { summarizeContextEchoWithAI } = require("./summarize_context_echo");
 const fsp = require('fs/promises');
 const { performance } = require('perf_hooks');
 const sec = (ms) => Number(ms/1000).toFixed(2);
+const crypto = require('crypto');
+
+/**
+ * =========================
+ *  GERAÇÃO DE NOMES ÚNICOS
+ * =========================
+ */
+
+/**
+ * Gera nome único para arquivos de debug
+ * Formato: YYYYMMDD_HHMMSS_hash8_tipo.json
+ */
+function generateUniqueDebugFileName(type = 'figmaSpec', group = 'item1') {
+  const now = new Date();
+  const timestamp = now.toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\..+/, '')
+    .replace('T', '_');
+  
+  // Hash curto baseado em timestamp + tipo + group
+  const hash = crypto.createHash('md5')
+    .update(`${timestamp}_${type}_${group}`)
+    .digest('hex')
+    .substring(0, 8);
+  
+  return `${timestamp}_${hash}_${type}_${group}.json`;
+}
+
+/**
+ * Limpa arquivos de debug antigos (mais de 24 horas)
+ */
+async function cleanupOldDebugFiles() {
+  try {
+    const debugDirs = ['debug_layouts', 'debug_responses', 'debug_vision'];
+    const maxAge = 24 * 60 * 60 * 1000; // 24 horas em ms
+    
+    for (const dirName of debugDirs) {
+      const dirPath = path.join(__dirname, dirName);
+      
+      try {
+        const files = await fsp.readdir(dirPath);
+        const now = Date.now();
+        
+        for (const file of files) {
+          const filePath = path.join(dirPath, file);
+          const stats = await fsp.stat(filePath);
+          
+          // Remove arquivos com mais de 24 horas (exceto last.json)
+          if (now - stats.mtime.getTime() > maxAge && file !== 'last.json') {
+            await fsp.unlink(filePath);
+            logger.debug(`🗑️ Arquivo antigo removido: ${dirName}/${file}`);
+          }
+        }
+      } catch (err) {
+        // Diretório não existe ou erro de leitura - ignorar
+      }
+    }
+  } catch (error) {
+    logger.warn(`⚠️ Erro na limpeza de arquivos de debug: ${error.message}`);
+  }
+}
 
 /**
  * =========================
@@ -453,10 +514,13 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         const parsedResult = JSON.parse(cleanContent);
         
         // Extrair tokens da resposta (Responses API)
+        // Debug: mostrar estrutura de usage
+        logger.info(`🔄 Agente A: Usage object: ${JSON.stringify(result.usage || {})}`);
         const tokens = {
-          input: result.usage?.prompt_tokens || 0,
-          output: result.usage?.completion_tokens || 0
+          input: result.usage?.prompt_tokens || result.usage?.input_tokens || 0,
+          output: result.usage?.completion_tokens || result.usage?.output_tokens || 0
         };
+        logger.info(`🔄 Agente A: Tokens extraídos: input=${tokens.input}, output=${tokens.output}`);
         
         return { data: parsedResult, tokens };
       } else {
@@ -718,10 +782,13 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         const parsedResult = JSON.parse(cleanContent);
         
         // Extrair tokens da resposta (Responses API)
+        // Debug: mostrar estrutura de usage
+        logger.info(`🔄 Agente C: Usage object: ${JSON.stringify(result.usage || {})}`);
         const tokens = {
-          input: result.usage?.prompt_tokens || 0,
-          output: result.usage?.completion_tokens || 0
+          input: result.usage?.prompt_tokens || result.usage?.input_tokens || 0,
+          output: result.usage?.completion_tokens || result.usage?.output_tokens || 0
         };
+        logger.info(`🔄 Agente C: Tokens extraídos: input=${tokens.input}, output=${tokens.output}`);
         
         return { data: parsedResult, tokens };
       }
@@ -782,9 +849,576 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
   }
 }
 
+// =========================
+// ENRIQUECIMENTO COM CONTEXTO DE CLIPPING
+// =========================
+
+/**
+ * Enriquece o figmaSpec com metadados de clipping e contexto de container
+ * para resolver falsos positivos de "imagem cortada"
+ */
+function enrichFigmaSpecWithClippingContext(figmaSpec) {
+  if (!figmaSpec || !figmaSpec.components) {
+    return figmaSpec;
+  }
+
+  logger.info(`🔄 Enriqueciendo figmaSpec com contexto de clipping...`);
+  
+  // Criar mapa de componentes por ID para lookup rápido
+  const componentMap = new Map();
+  figmaSpec.components.forEach(comp => {
+    componentMap.set(comp.id, comp);
+  });
+
+  // Processar cada componente
+  const enrichedComponents = figmaSpec.components.map(comp => {
+    const enrichedComp = { ...comp };
+    
+    // Detectar contexto de clipping
+    enrichedComp.clippingContext = analyzeClippingContext(comp, figmaSpec);
+    
+    // Detectar contexto de container
+    enrichedComp.containerContext = analyzeContainerContext(comp, figmaSpec);
+    
+    // Detectar contexto de Auto Layout
+    enrichedComp.layoutContext = analyzeLayoutContext(comp, figmaSpec);
+    
+    return enrichedComp;
+  });
+
+  return {
+    ...figmaSpec,
+    components: enrichedComponents,
+    _enriched: true,
+    _enrichmentTimestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Analisa o contexto de clipping de um componente
+ */
+function analyzeClippingContext(comp, figmaSpec) {
+  const clippingContext = {
+    isClipped: false,
+    clipParentId: null,
+    visibleBounds: comp.bounds || null,
+    physicalBounds: comp.bounds || null,
+    overflowBehavior: 'visible',
+    intentionalOverflow: false
+  };
+
+  // Detectar se está dentro de um frame com clipping
+  if (comp.parentId) {
+    const parent = figmaSpec.components.find(c => c.id === comp.parentId);
+    if (parent && parent.type === 'FRAME' && parent.clipsContent) {
+      clippingContext.isClipped = true;
+      clippingContext.clipParentId = parent.id;
+      clippingContext.overflowBehavior = 'hidden';
+      
+      // Calcular bounds visíveis após clipping
+      clippingContext.visibleBounds = calculateVisibleBounds(comp, parent);
+      clippingContext.physicalBounds = comp.bounds;
+    }
+  }
+
+  // Detectar se overflow é intencional
+  clippingContext.intentionalOverflow = detectIntentionalOverflow(comp, figmaSpec);
+
+  return clippingContext;
+}
+
+/**
+ * Analisa o contexto de container de um componente
+ */
+function analyzeContainerContext(comp, figmaSpec) {
+  const containerContext = {
+    isInsideFrame: false,
+    frameType: null,
+    frameBounds: null,
+    respectsFrameBounds: true
+  };
+
+  if (comp.parentId) {
+    const parent = figmaSpec.components.find(c => c.id === comp.parentId);
+    if (parent && parent.type === 'FRAME') {
+      containerContext.isInsideFrame = true;
+      containerContext.frameType = detectFrameType(parent);
+      containerContext.frameBounds = parent.bounds;
+      containerContext.respectsFrameBounds = checkBoundsRespect(comp, parent);
+    }
+  }
+
+  return containerContext;
+}
+
+/**
+ * Calcula bounds visíveis após clipping
+ */
+function calculateVisibleBounds(comp, clipFrame) {
+  if (!comp.bounds || !clipFrame.bounds) {
+    return comp.bounds;
+  }
+
+  const compBounds = comp.bounds;
+  const frameBounds = clipFrame.bounds;
+
+  // Intersecção entre elemento e frame
+  const visibleX = Math.max(compBounds.x, frameBounds.x);
+  const visibleY = Math.max(compBounds.y, frameBounds.y);
+  const visibleRight = Math.min(
+    compBounds.x + compBounds.width,
+    frameBounds.x + frameBounds.width
+  );
+  const visibleBottom = Math.min(
+    compBounds.y + compBounds.height,
+    frameBounds.y + frameBounds.height
+  );
+
+  return {
+    x: visibleX,
+    y: visibleY,
+    width: Math.max(0, visibleRight - visibleX),
+    height: Math.max(0, visibleBottom - visibleY)
+  };
+}
+
+/**
+ * Detecta se overflow é intencional (padrão comum em design)
+ */
+function detectIntentionalOverflow(comp, figmaSpec) {
+  const compName = (comp.name || '').toLowerCase();
+  const compType = comp.type;
+
+  // Padrão 1: Imagem de fundo/hero
+  if (compType === 'RECTANGLE' && comp.fills?.length > 0) {
+    const isBackgroundLayer = compName.includes('background') ||
+                             compName.includes('bg') ||
+                             compName.includes('hero') ||
+                             compName.includes('cover');
+    if (isBackgroundLayer) return true;
+  }
+
+  // Padrão 2: Elemento decorativo
+  if (compName.includes('decoration') ||
+      compName.includes('ornament') ||
+      compName.includes('floating') ||
+      compName.includes('splash')) {
+    return true;
+  }
+
+  // Padrão 3: Imagem dentro de container nomeado
+  if (comp.parentId) {
+    const parent = figmaSpec.components.find(c => c.id === comp.parentId);
+    if (parent && parent.name) {
+      const parentName = parent.name.toLowerCase();
+      const containerNames = ['image container', 'img wrapper', 'photo frame', 'hero container'];
+      if (containerNames.some(name => parentName.includes(name))) {
+        return true;
+      }
+    }
+  }
+
+  // Padrão 4: Imagem com proporções típicas de hero/cover
+  if (comp.bounds && compType === 'RECTANGLE') {
+    const aspectRatio = comp.bounds.width / comp.bounds.height;
+    // Proporções típicas de imagens hero (mais largas que altas)
+    if (aspectRatio > 1.5 && comp.bounds.width > 800) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Detecta tipo de frame (screen vs component)
+ */
+function detectFrameType(frame) {
+  if (!frame || frame.type !== 'FRAME') return null;
+
+  const frameName = (frame.name || '').toLowerCase();
+  const bounds = frame.bounds;
+
+  // Screens geralmente têm dimensões mobile/desktop padrão
+  const screenSizes = [
+    { w: 375, h: 667 },   // iPhone SE
+    { w: 390, h: 844 },   // iPhone 12/13
+    { w: 414, h: 896 },   // iPhone 11 Pro Max
+    { w: 1920, h: 1080 }, // Desktop
+    { w: 1440, h: 900 }   // MacBook
+  ];
+
+  if (bounds) {
+    const isScreenSize = screenSizes.some(size => 
+      Math.abs(bounds.width - size.w) < 10 && 
+      Math.abs(bounds.height - size.h) < 10
+    );
+    
+    if (isScreenSize || frameName.includes('screen')) return 'screen';
+  }
+
+  if (frameName.includes('component')) return 'component';
+  return 'group';
+}
+
+/**
+ * Verifica se elemento respeita bounds do frame pai
+ */
+function checkBoundsRespect(comp, parent) {
+  if (!comp.bounds || !parent.bounds) return true;
+
+  const compBounds = comp.bounds;
+  const parentBounds = parent.bounds;
+
+  // Verifica se o componente está completamente dentro do frame
+  return compBounds.x >= parentBounds.x &&
+         compBounds.y >= parentBounds.y &&
+         (compBounds.x + compBounds.width) <= (parentBounds.x + parentBounds.width) &&
+         (compBounds.y + compBounds.height) <= (parentBounds.y + parentBounds.height);
+}
+
+/**
+ * Analisa o contexto de Auto Layout de um componente
+ */
+function analyzeLayoutContext(comp, figmaSpec) {
+  const layoutContext = {
+    isControlledByParent: false,
+    parentLayoutMode: null,
+    effectiveAlignment: {
+      horizontal: 'LEFT',
+      vertical: 'TOP'
+    },
+    parentLayoutProps: null,
+    respectsParentLayout: true
+  };
+
+  // Detectar se pai tem Auto Layout ativo
+  if (comp.parentId) {
+    const parent = figmaSpec.components.find(c => c.id === comp.parentId);
+    if (parent && parent.layoutMode && parent.layoutMode !== 'NONE') {
+      layoutContext.isControlledByParent = true;
+      layoutContext.parentLayoutMode = parent.layoutMode;
+      
+      // Calcular alinhamento efetivo
+      layoutContext.effectiveAlignment = calculateEffectiveAlignment(comp, parent);
+      
+      // Extrair props de Auto Layout do pai
+      layoutContext.parentLayoutProps = extractAutoLayoutProps(parent);
+      
+      // Verificar se elemento respeita layout do pai
+      layoutContext.respectsParentLayout = checkIfRespectsLayout(comp, parent);
+    }
+  }
+
+  // Se não tem pai com Auto Layout, usa alinhamento próprio
+  if (!layoutContext.isControlledByParent) {
+    layoutContext.effectiveAlignment = {
+      horizontal: comp.textAlignHorizontal || 'LEFT',
+      vertical: comp.textAlignVertical || 'TOP'
+    };
+  }
+
+  return layoutContext;
+}
+
+/**
+ * Calcula alinhamento efetivo baseado no Auto Layout do pai
+ */
+function calculateEffectiveAlignment(comp, parent) {
+  if (!parent || !parent.layoutMode || parent.layoutMode === 'NONE') {
+    return {
+      horizontal: comp.textAlignHorizontal || 'LEFT',
+      vertical: comp.textAlignVertical || 'TOP'
+    };
+  }
+
+  let effectiveHorizontal = 'LEFT';
+  let effectiveVertical = 'TOP';
+
+  // Auto Layout HORIZONTAL
+  if (parent.layoutMode === 'HORIZONTAL') {
+    // Eixo principal (horizontal) → usa counterAxisAlignItems
+    effectiveHorizontal = mapAutoLayoutToAlignment(parent.counterAxisAlignItems);
+    
+    // Eixo secundário (vertical) → usa primaryAxisAlignItems
+    effectiveVertical = mapAutoLayoutToAlignment(parent.primaryAxisAlignItems);
+  } 
+  // Auto Layout VERTICAL
+  else if (parent.layoutMode === 'VERTICAL') {
+    // Eixo principal (vertical) → usa primaryAxisAlignItems
+    effectiveVertical = mapAutoLayoutToAlignment(parent.primaryAxisAlignItems);
+    
+    // Eixo secundário (horizontal) → usa counterAxisAlignItems
+    effectiveHorizontal = mapAutoLayoutToAlignment(parent.counterAxisAlignItems);
+  }
+
+  return {
+    horizontal: effectiveHorizontal,
+    vertical: effectiveVertical
+  };
+}
+
+/**
+ * Mapeia propriedades de Auto Layout para alinhamento
+ */
+function mapAutoLayoutToAlignment(alignValue) {
+  const mapping = {
+    'MIN': 'LEFT',
+    'CENTER': 'CENTER',
+    'MAX': 'RIGHT',
+    'SPACE_BETWEEN': 'LEFT',
+    'BASELINE': 'LEFT'
+  };
+  
+  return mapping[alignValue] || 'LEFT';
+}
+
+/**
+ * Extrai props de Auto Layout do pai
+ */
+function extractAutoLayoutProps(parent) {
+  return {
+    primaryAxisAlignItems: parent.primaryAxisAlignItems || 'MIN',
+    counterAxisAlignItems: parent.counterAxisAlignItems || 'MIN',
+    itemSpacing: parent.itemSpacing || 0,
+    paddingLeft: parent.paddingLeft || 0,
+    paddingRight: parent.paddingRight || 0,
+    paddingTop: parent.paddingTop || 0,
+    paddingBottom: parent.paddingBottom || 0,
+    layoutWrap: parent.layoutWrap || 'NO_WRAP'
+  };
+}
+
+/**
+ * Verifica se elemento respeita layout do pai
+ */
+function checkIfRespectsLayout(comp, parent) {
+  if (!parent || !parent.layoutMode) return false;
+  
+  // Elementos com layoutPositioning: 'ABSOLUTE' não seguem Auto Layout
+  if (comp.layoutPositioning === 'ABSOLUTE') {
+    return false;
+  }
+  
+  // Elementos com constraints fixos podem ignorar Auto Layout
+  if (comp.constraints) {
+    const constraints = comp.constraints;
+    const hasFixedConstraints = 
+      constraints.horizontal !== 'LEFT_RIGHT' ||
+      constraints.vertical !== 'TOP_BOTTOM';
+    
+    if (hasFixedConstraints) return false;
+  }
+  
+  return true;
+}
+
+// =========================
+// VALIDAÇÃO PRÉ-RECONCILIAÇÃO
+// =========================
+
+/**
+ * Filtra falsos positivos ANTES do Agente C processar
+ */
+class PreReconciliationValidator {
+  
+  async validateHeuristics(heuristics, enrichedFigmaSpec) {
+    if (!heuristics || !Array.isArray(heuristics)) {
+      return heuristics;
+    }
+
+    logger.info(`🔍 Validando ${heuristics.length} heurísticas para falsos positivos...`);
+    
+    const validatedHeuristics = heuristics.filter(h => {
+      // Regra 1: Remove "imagem cortada" se for overflow intencional
+      if (this.isIntentionalImageOverflow(h, enrichedFigmaSpec)) {
+        logger.info(`[Validator] Removendo falso positivo: ${h.titulo_card}`);
+        return false;
+      }
+      
+      // Regra 2: Remove alertas de elementos decorativos
+      if (this.isDecorativeElement(h, enrichedFigmaSpec)) {
+        logger.info(`[Validator] Removendo elemento decorativo: ${h.titulo_card}`);
+        return false;
+      }
+      
+      // Regra 3: Valida se elemento cortado é crítico
+      if (h.titulo_card && h.titulo_card.toLowerCase().includes('cortad')) {
+        return this.isCriticalCut(h, enrichedFigmaSpec);
+      }
+      
+      // Regra 4: Remove falsos positivos de Auto Layout
+      if (this.isAutoLayoutFalsePositive(h, enrichedFigmaSpec)) {
+        logger.info(`[Validator] Removendo falso positivo de Auto Layout: ${h.titulo_card}`);
+        return false;
+      }
+      
+      return true;
+    });
+
+    const removedCount = heuristics.length - validatedHeuristics.length;
+    if (removedCount > 0) {
+      logger.info(`🔍 Validação concluída: ${removedCount} falsos positivos removidos`);
+    }
+
+    return validatedHeuristics;
+  }
+
+  isIntentionalImageOverflow(heuristic, enrichedFigmaSpec) {
+    if (!enrichedFigmaSpec || !enrichedFigmaSpec.components) {
+      return false;
+    }
+
+    // Identifica o nó relacionado à heurística
+    const node = enrichedFigmaSpec.components.find(comp => 
+      heuristic.node_id === comp.id ||
+      (heuristic.titulo_card && heuristic.titulo_card.toLowerCase().includes(comp.name.toLowerCase()))
+    );
+    
+    if (!node || !node.clippingContext) {
+      return false;
+    }
+    
+    // Checa se é imagem com overflow intencional
+    const isImage = node.type === 'RECTANGLE' && 
+                   node.fills && 
+                   node.fills.some(f => f.type === 'IMAGE');
+    
+    return isImage && node.clippingContext.intentionalOverflow === true;
+  }
+
+  isDecorativeElement(heuristic, enrichedFigmaSpec) {
+    if (!enrichedFigmaSpec || !enrichedFigmaSpec.components) {
+      return false;
+    }
+
+    const node = enrichedFigmaSpec.components.find(comp => 
+      heuristic.node_id === comp.id ||
+      (heuristic.titulo_card && heuristic.titulo_card.toLowerCase().includes(comp.name.toLowerCase()))
+    );
+    
+    if (!node) {
+      return false;
+    }
+
+    const nodeName = (node.name || '').toLowerCase();
+    
+    // Elementos decorativos conhecidos
+    const decorativeKeywords = [
+      'decoration', 'ornament', 'floating', 'splash', 
+      'background', 'bg', 'hero', 'cover', 'overlay'
+    ];
+    
+    return decorativeKeywords.some(keyword => nodeName.includes(keyword));
+  }
+
+  isCriticalCut(heuristic, enrichedFigmaSpec) {
+    if (!enrichedFigmaSpec || !enrichedFigmaSpec.components) {
+      return true; // dúvida → mantém alerta
+    }
+
+    const node = enrichedFigmaSpec.components.find(comp => 
+      heuristic.node_id === comp.id ||
+      (heuristic.titulo_card && heuristic.titulo_card.toLowerCase().includes(comp.name.toLowerCase()))
+    );
+    
+    if (!node || !node.clippingContext) {
+      return true; // dúvida → mantém alerta
+    }
+    
+    const { visibleBounds, physicalBounds } = node.clippingContext;
+    
+    if (!visibleBounds || !physicalBounds) {
+      return true; // dúvida → mantém alerta
+    }
+    
+    // Calcula % de área visível
+    const visibleArea = visibleBounds.width * visibleBounds.height;
+    const totalArea = physicalBounds.width * physicalBounds.height;
+    const visibilityRatio = visibleArea / totalArea;
+    
+    // Elementos críticos devem ter >80% visíveis
+    const criticalTypes = ['TEXT', 'BUTTON', 'INPUT'];
+    if (criticalTypes.includes(node.type)) {
+      return visibilityRatio < 0.8;
+    }
+    
+    // Imagens podem ter até 50% cortadas se forem decorativas
+    return visibilityRatio < 0.5;
+  }
+
+  // =========================
+  // VALIDAÇÃO DE AUTO LAYOUT
+  // =========================
+  
+  isAutoLayoutFalsePositive(heuristic, enrichedFigmaSpec) {
+    if (!enrichedFigmaSpec || !enrichedFigmaSpec.components) {
+      return false;
+    }
+
+    // Identifica heurísticas sobre alinhamento
+    const alignmentKeywords = [
+      'alinhamento',
+      'desalinhado',
+      'centralizado',
+      'posicionado',
+      'esquerda',
+      'direita',
+      'margem',
+      'padding'
+    ];
+    
+    const isAlignmentIssue = alignmentKeywords.some(keyword =>
+      heuristic.titulo_card && heuristic.titulo_card.toLowerCase().includes(keyword) ||
+      heuristic.descricao && heuristic.descricao.toLowerCase().includes(keyword)
+    );
+    
+    if (!isAlignmentIssue) return false;
+    
+    // Busca o nó relacionado
+    const node = enrichedFigmaSpec.components.find(comp => 
+      heuristic.node_id === comp.id ||
+      (heuristic.titulo_card && heuristic.titulo_card.toLowerCase().includes(comp.name.toLowerCase()))
+    );
+    
+    if (!node || !node.layoutContext) return false;
+    
+    // Se elemento está sob controle de Auto Layout e effectiveAlignment
+    // está correto, é falso positivo
+    if (node.layoutContext.isControlledByParent) {
+      const effective = node.layoutContext.effectiveAlignment;
+      
+      // Para botões, CENTER é esperado
+      if (node.type === 'BUTTON' || (node.name && node.name.toLowerCase().includes('button'))) {
+        return effective.horizontal === 'CENTER';
+      }
+      
+      // Para textos dentro de botões, CENTER também é esperado
+      const parentNode = enrichedFigmaSpec.components.find(n => 
+        n.children && n.children.some(c => c.id === node.id)
+      );
+      
+      if (parentNode && (parentNode.type === 'BUTTON' || (parentNode.name && parentNode.name.toLowerCase().includes('button')))) {
+        return effective.horizontal === 'CENTER';
+      }
+      
+      // Para elementos com Auto Layout funcionando corretamente
+      if (effective.horizontal === 'CENTER' && effective.vertical === 'CENTER') {
+        return true; // Falso positivo - está centralizado corretamente
+      }
+    }
+    
+    return false;
+  }
+}
+
 // Orquestrador Principal - Coordena A, B e C
 async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId, group, useRag = false) {
   logger.info(`🎭 Orquestrador iniciado: ${group}`);
+  
+  // ENRIQUECER FIGMASPEC COM CONTEXTO DE CLIPPING
+  const enrichedFigmaSpec = enrichFigmaSpecWithClippingContext(figmaSpec);
+  logger.info(`🔄 FigmaSpec enriquecido: ${enrichedFigmaSpec.components?.length || 0} componentes processados`);
   
   const startTime = performance.now();
   let achadosA = null, achadosB = null, achadosFinal = null;
@@ -824,7 +1458,7 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     const [resultA, resultB] = await Promise.allSettled([
       (async () => {
         const agenteAStartIndividual = performance.now();
-        const result = await runAgentA(figmaSpec, metodo, vectorStoreId, useRag);
+        const result = await runAgentA(enrichedFigmaSpec, metodo, vectorStoreId, useRag);
         const agenteAEndIndividual = performance.now();
         timeAgenteA = agenteAEndIndividual - agenteAStartIndividual;
         
@@ -857,6 +1491,11 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
         achadosA = resultA.value;
       }
       logger.info(`   ✅ Agente A: ${achadosA.achados?.length || 0} achados`);
+      
+      // VALIDAÇÃO PRÉ-RECONCILIAÇÃO - Filtrar falsos positivos
+      const validator = new PreReconciliationValidator();
+      achadosA.achados = await validator.validateHeuristics(achadosA.achados, enrichedFigmaSpec);
+      logger.info(`   ✅ Agente A (pós-validação): ${achadosA.achados?.length || 0} achados`);
     } else {
       logger.warn(`   ⚠️ Agente A falhou: ${resultA.reason?.message || 'erro desconhecido'}`);
       achadosA = { achados: [] };
@@ -871,6 +1510,11 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
         achadosB = resultB.value;
       }
       logger.info(`   ✅ Agente B: ${achadosB.achados?.length || 0} achados`);
+      
+      // VALIDAÇÃO PRÉ-RECONCILIAÇÃO - Filtrar falsos positivos
+      const validatorB = new PreReconciliationValidator();
+      achadosB.achados = await validatorB.validateHeuristics(achadosB.achados, enrichedFigmaSpec);
+      logger.info(`   ✅ Agente B (pós-validação): ${achadosB.achados?.length || 0} achados`);
     } else {
       if (imageBase64) {
         logger.warn(`   ⚠️ Agente B falhou: ${resultB.reason?.message || 'erro desconhecido'}`);
@@ -1723,10 +2367,15 @@ const normalizeImageUrl = (u) =>
         try { parsed = JSON.parse(raw); } catch { parsed = null; }
 
         try { fs.mkdirSync(path.join(__dirname, "debug_layouts"), { recursive: true }); } catch {}
-        try { fs.writeFileSync(path.join(__dirname, "debug_layouts", "last_raw_always.json"), raw, "utf8"); } catch {}
+        
+        // Salvar sempre com nome único
+        const rawFileName = generateUniqueDebugFileName('raw', 'always');
+        try { fs.writeFileSync(path.join(__dirname, "debug_layouts", rawFileName), raw, "utf8"); } catch {}
+        
         if (!parsed) {
-          console.warn("[WARN] JSON inválido detectado, salvando saída bruta em debug_layouts/last_raw.json");
-          try { fs.writeFileSync(path.join(__dirname, "debug_layouts", "last_raw.json"), raw, "utf8"); } catch {}
+          console.warn(`[WARN] JSON inválido detectado, salvando saída bruta em debug_layouts/${rawFileName}`);
+          const errorFileName = generateUniqueDebugFileName('raw', 'error');
+          try { fs.writeFileSync(path.join(__dirname, "debug_layouts", errorFileName), raw, "utf8"); } catch {}
         }
       }
 
@@ -1786,7 +2435,9 @@ const normalizeImageUrl = (u) =>
       try {
         const dir = path.join(__dirname, "debug_layouts");
         fs.mkdirSync(dir, { recursive: true });
-        const fileName = hasSpec ? `figmaSpec_item${i+1}.json` : `vision_item${i+1}.json`;
+        const fileName = hasSpec ? 
+          generateUniqueDebugFileName('figmaSpec', `item${i+1}`) : 
+          generateUniqueDebugFileName('vision', `item${i+1}`);
         fs.writeFileSync(path.join(dir, fileName), visionPretty, "utf8");
         fs.writeFileSync(path.join(dir, "last.json"),
           JSON.stringify({ images: LAST_VISION_RAW, count: LAST_VISION_RAW.length }, null, 2),
@@ -1932,9 +2583,15 @@ app.get("/", (_req, res) => {
 const PORT = process.env.PORT || 3000;
 const ndjsonPath = path.join(__dirname, 'heuristica.ndjson');
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   logger.info(`Servidor iniciado na porta ${PORT}`);
   logger.info(`Logs salvos em: ${ndjsonPath}`);
+  
+  // Limpeza inicial de arquivos antigos
+  await cleanupOldDebugFiles();
+  
+  // Limpeza periódica a cada 2 horas
+  setInterval(cleanupOldDebugFiles, 2 * 60 * 60 * 1000);
   
   // Log das configurações do modelo
   logger.info(`\nConfigurações:`);
@@ -2070,6 +2727,127 @@ app.get('/debug/download/:dir/:file', (req, res) => {
     }
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// =========================
+// ENDPOINTS PARA FEEDBACK E TRACKING
+// =========================
+
+// Endpoint para receber feedback dos usuários
+app.post('/api/feedback', async (req, res) => {
+  try {
+    const { achadoIndex, feedback, timestamp, userId } = req.body;
+    
+    // Validar dados
+    if (typeof achadoIndex !== 'number' || !['like', 'dislike'].includes(feedback)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Dados de feedback inválidos' 
+      });
+    }
+    
+    // Salvar feedback (aqui você pode salvar em banco de dados)
+    const feedbackData = {
+      achadoIndex,
+      feedback,
+      timestamp: timestamp || new Date().toISOString(),
+      userId: userId || 'anonymous',
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    };
+    
+    // Log do feedback
+    logger.info(`📊 Feedback recebido: ${feedback} para achado ${achadoIndex} (usuário: ${userId})`);
+    
+    // Aqui você pode salvar em banco de dados
+    // await saveFeedbackToDatabase(feedbackData);
+    
+    res.json({ 
+      success: true, 
+      message: 'Feedback registrado com sucesso',
+      data: feedbackData
+    });
+    
+  } catch (error) {
+    logger.error(`❌ Erro ao processar feedback: ${error.message}`);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// Endpoint para rastrear cliques em referências
+app.post('/api/track-reference', async (req, res) => {
+  try {
+    const { reference, timestamp, userId } = req.body;
+    
+    // Validar dados
+    if (!reference || typeof reference !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Referência inválida' 
+      });
+    }
+    
+    // Salvar tracking (aqui você pode salvar em banco de dados)
+    const trackingData = {
+      reference,
+      timestamp: timestamp || new Date().toISOString(),
+      userId: userId || 'anonymous',
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    };
+    
+    // Log do tracking
+    logger.info(`🔗 Clique em referência: ${reference} (usuário: ${userId})`);
+    
+    // Aqui você pode salvar em banco de dados
+    // await saveTrackingToDatabase(trackingData);
+    
+    res.json({ 
+      success: true, 
+      message: 'Tracking registrado com sucesso',
+      data: trackingData
+    });
+    
+  } catch (error) {
+    logger.error(`❌ Erro ao processar tracking: ${error.message}`);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erro interno do servidor' 
+    });
+  }
+});
+
+// Endpoint para obter estatísticas de feedback
+app.get('/api/feedback/stats', async (req, res) => {
+  try {
+    // Aqui você pode buscar estatísticas do banco de dados
+    // const stats = await getFeedbackStats();
+    
+    // Exemplo de resposta
+    const stats = {
+      totalFeedback: 0,
+      likes: 0,
+      dislikes: 0,
+      mostLikedHeuristic: null,
+      mostDislikedHeuristic: null,
+      feedbackByDate: []
+    };
+    
+    res.json({ 
+      success: true, 
+      data: stats
+    });
+    
+  } catch (error) {
+    logger.error(`❌ Erro ao obter estatísticas: ${error.message}`);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erro interno do servidor' 
+    });
   }
 });
 
