@@ -965,6 +965,16 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
   figma.ui.postMessage({ carregando: true });
 
   try {
+    console.log("🚀 [DEBUG] Iniciando análise...");
+    console.log("🚀 [DEBUG] API_URL:", API_URL);
+    console.log("🚀 [DEBUG] Dados enviados:", {
+      imagensCount: imagensBase64.filter(Boolean).length,
+      figmaSpecsCount: figmaSpecs.length,
+      metodo,
+      descricao,
+      nomeLayout: layoutNameFromFigma
+    });
+    
     // [API] Chamada ao backend com imagens base64 + metadados. Espera texto formatado em 1–8.
     const response = await fetch(API_URL, {
       method: "POST",
@@ -977,6 +987,9 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
         nomeLayout: layoutNameFromFigma
       })
     });
+    
+    console.log("🚀 [DEBUG] Response status:", response.status);
+    console.log("🚀 [DEBUG] Response ok:", response.ok);
 
     const data = await response.json();
 
@@ -1498,7 +1511,9 @@ layoutsPayload.push({ nome: `[AI] ${nodeName}`, cards: cardsPayload });
 // Envia resultados para a UI
 figma.ui.postMessage({ carregando: false, analises: layoutsPayload });
 } catch (e) {
-  console.error(e);
+  console.error("❌ [DEBUG] Erro completo na análise:", e);
+  console.error("❌ [DEBUG] Tipo do erro:", typeof e);
+  console.error("❌ [DEBUG] Mensagem do erro:", (e as any)?.message || e);
   figma.ui.postMessage({ carregando: false, resultado: "❌ Erro na análise." });
 }
 };

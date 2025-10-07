@@ -13,7 +13,8 @@
 figma.showUI(__html__, { width: 380, height: 385 });
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
 // DESENVOLVIMENTO: usar localhost para testar mudanças no prompt
-const API_URL = "http://localhost:3000/analisar";
+// DESENVOLVIMENTO: const API_URL = "http://localhost:3000/analisar";
+const API_URL = "https://api.uxday.com.br/analisar";
 function hexFromPaint(paint) {
     if (!paint || paint.type !== 'SOLID')
         return null;
@@ -841,9 +842,8 @@ figma.ui.onmessage = async (msg) => {
                 figmaSpec = await buildFigmaSpecFromFrame(firstNode);
             }
             // Chamada para benchmark multi-IA
-            // DESENVOLVIMENTO: usar localhost
-            const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
-                // PRODUÇÃO: const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
+            // DESENVOLVIMENTO: const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
+            const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -971,6 +971,15 @@ figma.ui.onmessage = async (msg) => {
     figma.ui.postMessage({ carregando: true });
     figma.ui.postMessage({ carregando: true });
     try {
+        console.log("🚀 [DEBUG] Iniciando análise...");
+        console.log("🚀 [DEBUG] API_URL:", API_URL);
+        console.log("🚀 [DEBUG] Dados enviados:", {
+            imagensCount: imagensBase64.filter(Boolean).length,
+            figmaSpecsCount: figmaSpecs.length,
+            metodo,
+            descricao,
+            nomeLayout: layoutNameFromFigma
+        });
         // [API] Chamada ao backend com imagens base64 + metadados. Espera texto formatado em 1–8.
         const response = await fetch(API_URL, {
             method: "POST",
@@ -983,6 +992,8 @@ figma.ui.onmessage = async (msg) => {
                 nomeLayout: layoutNameFromFigma
             })
         });
+        console.log("🚀 [DEBUG] Response status:", response.status);
+        console.log("🚀 [DEBUG] Response ok:", response.ok);
         const data = await response.json();
         let blocos = [];
         if (data && Array.isArray(data.respostas)) {
@@ -1003,7 +1014,6 @@ figma.ui.onmessage = async (msg) => {
                                 if (constatacao.toLowerCase().includes('hipótese') || constatacao.toLowerCase().includes('hipotese')) {
                                     constatacaoTexto = 'Hipótese';
                                 }
-                                
                                 return `1 - ${constatacaoTexto}
 2 - ${achado.titulo_card || 'Sem título'}
 3 - ${achado.heuristica_metodo || ''}
@@ -1294,7 +1304,6 @@ figma.ui.onmessage = async (msg) => {
                     tagContainer.counterAxisSizingMode = "AUTO";
                     tagContainer.itemSpacing = 0;
                     tagContainer.fills = [];
-                    
                     // Criar tag roxa para "Hipótese"
                     const tagBadge = figma.createFrame();
                     tagBadge.layoutMode = "HORIZONTAL";
@@ -1306,14 +1315,12 @@ figma.ui.onmessage = async (msg) => {
                     tagBadge.paddingBottom = 4;
                     tagBadge.cornerRadius = 6;
                     tagBadge.fills = [{ type: "SOLID", color: { r: 0.58, g: 0.35, b: 0.85 } }]; // Roxo
-                    
                     const tagText = figma.createText();
                     tagText.characters = "Hipótese";
                     tagText.fontName = { family: "Inter", style: "Bold" };
                     tagText.fontSize = 12;
                     tagText.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }]; // Texto branco
                     tagText.textAutoResize = "WIDTH_AND_HEIGHT";
-                    
                     tagBadge.appendChild(tagText);
                     tagContainer.appendChild(tagBadge);
                     headerLeft.appendChild(tagContainer);
@@ -1450,7 +1457,9 @@ figma.ui.onmessage = async (msg) => {
         figma.ui.postMessage({ carregando: false, analises: layoutsPayload });
     }
     catch (e) {
-        console.error(e);
+        console.error("❌ [DEBUG] Erro completo na análise:", e);
+        console.error("❌ [DEBUG] Tipo do erro:", typeof e);
+        console.error("❌ [DEBUG] Mensagem do erro:", e?.message || e);
         figma.ui.postMessage({ carregando: false, resultado: "❌ Erro na análise." });
     }
 };
