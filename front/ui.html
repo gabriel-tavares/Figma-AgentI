@@ -946,7 +946,7 @@ fieldset[disabled] .btn-plugin.active {
 
     /* ========= carrega JSON de links ========= */
     let heuristicasLinks = {};
-    const linksReady = fetch('http://localhost:3000/heuristicas_links.json?v=' + Date.now())
+    const linksReady = fetch('https://api.uxday.com.br/heuristicas_links.json?v=' + Date.now())
       .then(r => r.json())
       .then(data => { heuristicasLinks = data || {}; })
       .catch(err => { console.error("Erro ao carregar links", err); heuristicasLinks = {}; });
