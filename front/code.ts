@@ -1513,7 +1513,7 @@ figma.ui.postMessage({ carregando: false, analises: layoutsPayload });
 } catch (e) {
   console.error("❌ [DEBUG] Erro completo na análise:", e);
   console.error("❌ [DEBUG] Tipo do erro:", typeof e);
-  console.error("❌ [DEBUG] Mensagem do erro:", (e as any)?.message || e);
+  console.error("❌ [DEBUG] Mensagem do erro:", (e as any) && (e as any).message ? (e as any).message : e);
   figma.ui.postMessage({ carregando: false, resultado: "❌ Erro na análise." });
 }
 };

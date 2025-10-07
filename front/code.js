@@ -1459,7 +1459,7 @@ figma.ui.onmessage = async (msg) => {
     catch (e) {
         console.error("❌ [DEBUG] Erro completo na análise:", e);
         console.error("❌ [DEBUG] Tipo do erro:", typeof e);
-        console.error("❌ [DEBUG] Mensagem do erro:", e?.message || e);
+        console.error("❌ [DEBUG] Mensagem do erro:", e && e.message ? e.message : e);
         figma.ui.postMessage({ carregando: false, resultado: "❌ Erro na análise." });
     }
 };
