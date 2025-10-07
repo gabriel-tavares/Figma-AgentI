@@ -67,7 +67,10 @@ RUN echo "NODE_ENV=production" > .env && \
     echo "CORS_ORIGIN=https://www.figma.com" >> .env && \
     echo "LOG_LEVEL=info" >> .env && \
     echo "LOG_TO_FILE=true" >> .env && \
-    echo "REQUEST_TIMEOUT=30000" >> .env
+    echo "REQUEST_TIMEOUT=30000" >> .env && \
+    echo "ANALYZE_IMAGES=true" >> .env && \
+    echo "REASONING_EFFORT=medium" >> .env && \
+    echo "MAXTOK_TEXTO=20000" >> .env
 
 # Criar diretórios necessários e ajustar permissões
 RUN mkdir -p debug_responses debug_layouts debug_vision temp && \
