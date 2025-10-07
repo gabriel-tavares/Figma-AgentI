@@ -15,8 +15,8 @@ figma.showUI(__html__, { width: 380, height: 385 });
 
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
 // DESENVOLVIMENTO: usar localhost para testar mudanças no prompt
-const API_URL = "http://localhost:3000/analisar";
-// PRODUÇÃO: const API_URL = "https://api.uxday.com.br/analisar";
+// DESENVOLVIMENTO: const API_URL = "http://localhost:3000/analisar";
+const API_URL = "https://api.uxday.com.br/analisar";
 
 // ===== Extração direta do Figma (bypass Vision quando for frame real) =====
 type FigmaSpec = any;
@@ -831,9 +831,8 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
       }
 
       // Chamada para benchmark multi-IA
-      // DESENVOLVIMENTO: usar localhost
-      const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
-      // PRODUÇÃO: const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
+      // DESENVOLVIMENTO: const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
+      const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
