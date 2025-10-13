@@ -918,11 +918,12 @@ fieldset[disabled] .btn-plugin.active {
                 <div class="col-12">
                   <div class="d-flex align-items-center p-2 bg-light rounded">
                     <div class="me-3">
-                      <img src="/images/barbara-montes.jpg" alt="Bárbara Montes" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">
+                      <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <span class="fw-bold">B</span>
+                      </div>
                     </div>
                     <div class="flex-grow-1">
-                      <div class="fw-semibold">Bárbara Montes</div>
-                      <div class="small text-muted">UX Designer & Product Manager</div>
+                      <div class="fw-semibold">Bárbara Montes - <span class="text-muted">UX Designer</span></div>
                       <a href="https://www.linkedin.com/in/b%C3%A1rbara-montes/" target="_blank" class="small text-primary text-decoration-none">LinkedIn</a>
                     </div>
                   </div>
@@ -931,11 +932,12 @@ fieldset[disabled] .btn-plugin.active {
                 <div class="col-12">
                   <div class="d-flex align-items-center p-2 bg-light rounded">
                     <div class="me-3">
-                      <img src="/images/gabriel-tavares.jpg" alt="Gabriel Tavares" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">
+                      <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <span class="fw-bold">G</span>
+                      </div>
                     </div>
                     <div class="flex-grow-1">
-                      <div class="fw-semibold">Gabriel Tavares</div>
-                      <div class="small text-muted">Frontend Developer & UX Engineer</div>
+                      <div class="fw-semibold">Gabriel Tavares - <span class="text-muted">UX Designer</span></div>
                       <a href="https://www.linkedin.com/in/gtavares/" target="_blank" class="small text-primary text-decoration-none">LinkedIn</a>
                     </div>
                   </div>
@@ -944,11 +946,12 @@ fieldset[disabled] .btn-plugin.active {
                 <div class="col-12">
                   <div class="d-flex align-items-center p-2 bg-light rounded">
                     <div class="me-3">
-                      <img src="/images/simone-meirelles.jpg" alt="Simone Meirelles" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">
+                      <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <span class="fw-bold">S</span>
+                      </div>
                     </div>
                     <div class="flex-grow-1">
-                      <div class="fw-semibold">Simone Meirelles</div>
-                      <div class="small text-muted">UX Researcher & Designer</div>
+                      <div class="fw-semibold">Simone Meirelles - <span class="text-muted">UX Designer</span></div>
                       <a href="https://www.linkedin.com/in/simone-meirelles/" target="_blank" class="small text-primary text-decoration-none">LinkedIn</a>
                     </div>
                   </div>
@@ -1704,6 +1707,11 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
 
       const screenName = analysisData.screenName || 'Tela analisada';
       const achados = analysisData.achados || [];
+      
+      // Se há múltiplas telas, popular o dropdown
+      if (analysisData.layouts && analysisData.layouts.length > 1) {
+        populateScreenDropdown(analysisData.layouts);
+      }
 
       if (achados.length === 0) {
         resumoContainer.innerHTML = `
@@ -1902,11 +1910,43 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
       }
     };
 
+    // Função para popular o dropdown com nomes das telas
+    function populateScreenDropdown(layouts) {
+      const dropdown = document.getElementById('screenDropdown');
+      if (!dropdown) return;
+      
+      // Limpar opções existentes
+      dropdown.innerHTML = '';
+      
+      // Adicionar opções para cada layout/tela
+      layouts.forEach((layout, index) => {
+        const option = document.createElement('option');
+        const screenName = layout.nome || `Tela ${index + 1}`;
+        option.value = screenName;
+        option.textContent = screenName;
+        if (index === 0) option.selected = true; // Selecionar primeira tela por padrão
+        dropdown.appendChild(option);
+      });
+    }
+
     // Função para mudar de tela no dropdown
     window.changeScreen = function(screenName) {
       console.log('Mudando para tela:', screenName);
-      // TODO: Implementar lógica para carregar dados da tela selecionada
-      // Por enquanto, apenas log da funcionalidade
+      // Filtrar e exibir apenas os cards da tela selecionada
+      if (window.lastAnalysisData && window.lastAnalysisData.achados) {
+        const filteredCards = window.lastAnalysisData.achados.filter(card => 
+          card.screenName === screenName || card.nome === screenName
+        );
+        
+        // Atualizar exibição com cards filtrados
+        const analysisData = {
+          ...window.lastAnalysisData,
+          achados: filteredCards,
+          screenName: screenName
+        };
+        
+        showAnalysisResultsInResumo(analysisData);
+      }
     };
 
     // Função para lidar com feedback
@@ -2329,6 +2369,10 @@ function showToast(texto, variant = "danger", delay = 3000){
     function showResumo(analises, containerId = "summary-list"){
       toggleLoading(false);
       const layouts = Array.isArray(analises) ? analises : [analises];
+      
+      // Popular o dropdown com nomes das telas
+      populateScreenDropdown(layouts);
+      
       const listEl = document.getElementById(containerId);
       if (!listEl) return;
       listEl.innerHTML = "";
