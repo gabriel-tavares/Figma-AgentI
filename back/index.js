@@ -2648,6 +2648,15 @@ process.on('unhandledRejection', (reason, promise) => {
  * ============================================
  */
 /** - /ping-openai: faz uma chamada mínima ao modelo para testar conectividade */
+app.get("/status", (req, res) => {
+  res.json({
+    status: "running",
+    service: "figma-agenti-backend",
+    version: "1.0.0",
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get("/ping-openai", async (_req, res) => {
   try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -2665,6 +2674,14 @@ app.get("/ping-openai", async (_req, res) => {
     logger.error("Erro ping-openai:", e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post("/analyze", (req, res) => {
+  res.json({
+    message: "Análise de UX - Endpoint em desenvolvimento",
+    status: "placeholder",
+    timestamp: new Date().toISOString()
+  });
 });
 
 // ==========================================
