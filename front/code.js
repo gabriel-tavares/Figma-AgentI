@@ -1091,8 +1091,8 @@ figma.ui.onmessage = async (msg) => {
             autoLayout.layoutMode = "VERTICAL";
             autoLayout.primaryAxisAlignItems = "MIN";
             autoLayout.counterAxisAlignItems = "MIN";
-            autoLayout.primaryAxisSizingMode = "HUG"; // Hug contents na altura
-            autoLayout.counterAxisSizingMode = "HUG"; // Hug contents na largura
+            autoLayout.primaryAxisSizingMode = "AUTO"; // Auto sizing na altura
+            autoLayout.counterAxisSizingMode = "AUTO"; // Auto sizing na largura
             autoLayout.itemSpacing = 24;
             autoLayout.paddingTop = 16;
             autoLayout.paddingBottom = 16;
