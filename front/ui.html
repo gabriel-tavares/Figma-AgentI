@@ -5,98 +5,39 @@
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()" />
   <title>Agent.I – UI</title>
   
-  <!-- Suprimir TODOS os avisos do console do Figma - SOLUÇÃO DEFINITIVA -->
+  <!-- Suprimir apenas avisos específicos do Figma -->
   <script>
-    // SOLUÇÃO DEFINITIVA: Interceptar TODOS os métodos do console
-    (function() {
-      // Salvar referências originais
-      const originalConsole = {
-        log: console.log,
-        warn: console.warn,
-        error: console.error,
-        info: console.info,
-        debug: console.debug,
-        trace: console.trace,
-        table: console.table,
-        group: console.group,
-        groupEnd: console.groupEnd,
-        time: console.time,
-        timeEnd: console.timeEnd,
-        clear: console.clear
-      };
-      
-      // Função para verificar se é log do nosso plugin
-      function isOurLog(message) {
-        return message.includes('[DEBUG]') || 
-               message.includes('Agent.I') || 
-               message.includes('Figma-AgentI') ||
-               message.includes('✅') ||
-               message.includes('❌') ||
-               message.includes('Plugin') ||
-               message.includes('UX');
+    // Interceptar apenas avisos específicos do Figma
+    const originalConsoleWarn = console.warn;
+    const originalConsoleError = console.error;
+    
+    console.warn = function(...args) {
+      const message = args.join(' ');
+      if (message.includes('Potential permissions policy violation') ||
+          message.includes('You appear to be logging a relative timestamp') ||
+          message.includes('Try adding performance.timeOrigin') ||
+          message.includes('camera is not allowed') ||
+          message.includes('microphone is not allowed') ||
+          message.includes('clipboard-write is not allowed') ||
+          message.includes('display-capture is not allowed') ||
+          message.includes('Local fonts') ||
+          message.includes('was preloaded using link preload')) {
+        return; // Suprimir apenas avisos específicos do Figma
       }
-      
-      // Sobrescrever TODOS os métodos do console
-      console.log = function(...args) {
-        const message = args.join(' ');
-        if (isOurLog(message)) {
-          originalConsole.log.apply(console, args);
-        }
-      };
-      
-      console.warn = function(...args) {
-        return; // Suprimir TODOS os avisos
-      };
-      
-      console.error = function(...args) {
-        return; // Suprimir TODOS os erros
-      };
-      
-      console.info = function(...args) {
-        return; // Suprimir TODAS as informações
-      };
-      
-      console.debug = function(...args) {
-        return; // Suprimir TODOS os debugs
-      };
-      
-      console.trace = function(...args) {
-        return; // Suprimir TODOS os traces
-      };
-      
-      console.table = function(...args) {
-        return; // Suprimir TODAS as tabelas
-      };
-      
-      console.group = function(...args) {
-        return; // Suprimir TODOS os grupos
-      };
-      
-      console.groupEnd = function(...args) {
-        return; // Suprimir TODOS os grupos
-      };
-      
-      console.time = function(...args) {
-        return; // Suprimir TODOS os timers
-      };
-      
-      console.timeEnd = function(...args) {
-        return; // Suprimir TODOS os timers
-      };
-      
-      // Limpar console periodicamente
-      setInterval(function() {
-        if (typeof originalConsole.clear === 'function') {
-          originalConsole.clear();
-        }
-      }, 1000);
-      
-      // Interceptar também o objeto window.console
-      if (window.console) {
-        Object.assign(window.console, console);
+      originalConsoleWarn.apply(console, args);
+    };
+    
+    console.error = function(...args) {
+      const message = args.join(' ');
+      if (message.includes('Potential permissions policy violation') ||
+          message.includes('camera is not allowed') ||
+          message.includes('microphone is not allowed') ||
+          message.includes('clipboard-write is not allowed') ||
+          message.includes('display-capture is not allowed')) {
+        return; // Suprimir apenas erros específicos do Figma
       }
-      
-    })();
+      originalConsoleError.apply(console, args);
+    };
   </script>
 
   <!-- Fonte -->
