@@ -5,14 +5,16 @@
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()" />
   <title>Agent.I – UI</title>
   
-  <!-- Suprimir avisos de Permissions Policy -->
+  <!-- Suprimir avisos de Permissions Policy e Performance -->
   <script>
-    // Interceptar e suprimir avisos de Permissions Policy
+    // Interceptar e suprimir avisos específicos do Figma
     const originalConsoleWarn = console.warn;
     console.warn = function(...args) {
       const message = args.join(' ');
-      if (message.includes('Potential permissions policy violation')) {
-        return; // Suprimir avisos de Permissions Policy
+      if (message.includes('Potential permissions policy violation') ||
+          message.includes('You appear to be logging a relative timestamp') ||
+          message.includes('Try adding performance.timeOrigin')) {
+        return; // Suprimir avisos específicos do Figma
       }
       originalConsoleWarn.apply(console, args);
     };
