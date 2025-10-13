@@ -1084,9 +1084,36 @@ figma.ui.onmessage = async (msg) => {
                 partes.push(blocoOriginal.split("[[FIM_HEURISTICA]]")[0].trim());
             }
             
-            // Processar cards para esta tela específica
+            // Criar Auto Layout para esta tela específica
             const OFFSET_X = 80;
-            let currentY = targetNode.y; // Posição Y base para esta tela
+            const autoLayout = figma.createFrame();
+            autoLayout.name = `[AI] ${targetNode.name || 'Layout'}`;
+            autoLayout.layoutMode = "VERTICAL";
+            autoLayout.primaryAxisAlignItems = "MIN";
+            autoLayout.counterAxisAlignItems = "MIN";
+            autoLayout.itemSpacing = 24;
+            autoLayout.paddingTop = 16;
+            autoLayout.paddingBottom = 16;
+            autoLayout.paddingLeft = 16;
+            autoLayout.paddingRight = 16;
+            autoLayout.fills = [{ type: "SOLID", color: { r: 0.98, g: 0.98, b: 0.98 } }]; // Fundo cinza claro
+            autoLayout.cornerRadius = 8;
+            autoLayout.strokes = [{ type: "SOLID", color: { r: 0.9, g: 0.9, b: 0.9 } }]; // Borda sutil
+            
+            // Posicionar o Auto Layout ao lado da tela
+            autoLayout.x = targetNode.x + targetNode.width + OFFSET_X;
+            autoLayout.y = targetNode.y;
+            
+            // Adicionar cabeçalho ao Auto Layout
+            const header = figma.createText();
+            await figma.loadFontAsync({ family: "Inter", style: "Bold" });
+            header.characters = `[AI] ${targetNode.name || 'Layout'}`;
+            header.fontSize = 16;
+            header.fills = [{ type: "SOLID", color: { r: 0.2, g: 0.2, b: 0.2 } }];
+            autoLayout.appendChild(header);
+            
+            // Adicionar o Auto Layout à página
+            figma.currentPage.appendChild(autoLayout);
         // === PRIORIZAÇÃO: problemas primeiro, positivos por último ===
         const MAX_POSITIVE_CARDS = 1; // 0 = ocultar positivos; 1 = mostrar apenas 1; ajuste como quiser.
         function extrairSeveridade(p) {
@@ -1433,16 +1460,10 @@ figma.ui.onmessage = async (msg) => {
                     contentCol.appendChild(secRef);
                 card.appendChild(barraLateral);
                 card.appendChild(contentCol);
-                // [POSICIONAMENTO] Posiciona o card ao lado do layout de origem (um card por frame).
-                card.x = targetNode.x + targetNode.width + OFFSET_X;
-                card.y = currentY;
-                // Adiciona o card finalizado à página atual do Figma
-                card.x = targetNode.x + targetNode.width + OFFSET_X;
-                card.y = currentY;
-                figma.currentPage.appendChild(card);
+                // Adiciona o card ao Auto Layout desta tela
+                autoLayout.appendChild(card);
                 // Agora que o card foi realmente criado, refletimos no resumo
                 cardsPayload.push({ analise: parte, severidade: sevMeta.label, sevKey, severidadeRaw, nodeId: targetNode.id });
-                currentY += card.height + 24;
             } // fim do for (const parte of partesOrdenadas)
             //barraLateral.resize(8, contentCol.height);
             // Nome do layout sem optional chaining
