@@ -16,8 +16,8 @@ figma.showUI(__html__, { width: 380, height: 385 });
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
 // DESENVOLVIMENTO: usar localhost para testar mudanças no prompt
 // DESENVOLVIMENTO: const API_URL = "http://localhost:3000/analisar";
-// PRODUÇÃO: usar servidor Coolify
-const API_URL = "http://c8880000404go88ck8gws4sw.148.230.78.115.sslip.io/analisar";
+// PRODUÇÃO: usar servidor Coolify com HTTPS
+const API_URL = "https://c8880000404go88ck8gws4sw.148.230.78.115.sslip.io/analisar";
 
 // ===== Extração direta do Figma (bypass Vision quando for frame real) =====
 type FigmaSpec = any;
@@ -833,8 +833,8 @@ if (msg && msg.type === "deleteAllHeuristicaCards") {
 
       // Chamada para benchmark multi-IA
       // DESENVOLVIMENTO: const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
-      // PRODUÇÃO: usar servidor Coolify
-      const response = await fetch("http://c8880000404go88ck8gws4sw.148.230.78.115.sslip.io/benchmark-multi-ai", {
+      // PRODUÇÃO: usar servidor Coolify com HTTPS
+      const response = await fetch("https://c8880000404go88ck8gws4sw.148.230.78.115.sslip.io/benchmark-multi-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
