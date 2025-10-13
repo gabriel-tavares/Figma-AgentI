@@ -1464,12 +1464,12 @@ figma.ui.onmessage = async (msg) => {
             // Nome do layout formatado para o cabeçalho do container
             const nodeName = (targetNode && targetNode.name) ? targetNode.name : (`Layout`);
                 // Empilha o resumo desta tela para enviar à UI
-                layoutsPayload.push({ nome: `[AI] ${nodeName}`, cards: cardsPayload });
+                layoutsPayload.push({ nome: nodeName, cards: cardsPayload });
             }
             catch (error) {
                 console.error(`[DEBUG] Erro ao processar análise da tela ${telaIndex + 1}:`, error);
                 // Continua mesmo se houver erro
-                layoutsPayload.push({ nome: `[AI] ${targetNode.name || 'Layout'} (Erro)`, cards: [] });
+                layoutsPayload.push({ nome: `${targetNode.name || 'Layout'} (Erro)`, cards: [] });
             }
         } // fim do loop da tela
         // Envia resultados para a UI
