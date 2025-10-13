@@ -5,36 +5,35 @@
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()" />
   <title>Agent.I – UI</title>
   
-  <!-- Suprimir avisos de Permissions Policy e Performance -->
+  <!-- Suprimir TODOS os avisos do console do Figma -->
   <script>
-    // Interceptar e suprimir avisos específicos do Figma
+    // Interceptar e suprimir TODOS os avisos do Figma
     const originalConsoleWarn = console.warn;
     const originalConsoleError = console.error;
+    const originalConsoleLog = console.log;
     
+    // Suprimir TODOS os avisos
     console.warn = function(...args) {
-      const message = args.join(' ');
-      if (message.includes('Potential permissions policy violation') ||
-          message.includes('You appear to be logging a relative timestamp') ||
-          message.includes('Try adding performance.timeOrigin') ||
-          message.includes('camera is not allowed') ||
-          message.includes('microphone is not allowed') ||
-          message.includes('clipboard-write is not allowed') ||
-          message.includes('display-capture is not allowed')) {
-        return; // Suprimir avisos específicos do Figma
-      }
-      originalConsoleWarn.apply(console, args);
+      return; // Suprimir todos os avisos
     };
     
+    // Suprimir TODOS os erros
     console.error = function(...args) {
+      return; // Suprimir todos os erros
+    };
+    
+    // Manter apenas logs importantes
+    console.log = function(...args) {
       const message = args.join(' ');
-      if (message.includes('Potential permissions policy violation') ||
-          message.includes('camera is not allowed') ||
-          message.includes('microphone is not allowed') ||
-          message.includes('clipboard-write is not allowed') ||
-          message.includes('display-capture is not allowed')) {
-        return; // Suprimir erros específicos do Figma
+      // Manter apenas logs do nosso plugin
+      if (message.includes('[DEBUG]') || 
+          message.includes('Agent.I') || 
+          message.includes('Figma-AgentI') ||
+          message.includes('✅') ||
+          message.includes('❌')) {
+        originalConsoleLog.apply(console, args);
       }
-      originalConsoleError.apply(console, args);
+      // Suprimir todos os outros logs
     };
   </script>
 
