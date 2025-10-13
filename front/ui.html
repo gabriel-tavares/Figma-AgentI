@@ -1184,6 +1184,17 @@ fieldset[disabled] .btn-plugin.active {
     function hideMensagem(){ const el = document.getElementById("mensagem-erro"); el.textContent=""; el.classList.add("d-none"); }
     function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
     
+    // Função para obter label de severidade
+    function getSeverityLabel(severity) {
+      const labels = {
+        'low': 'Baixo',
+        'medium': 'Médio', 
+        'high': 'Alto',
+        'critical': 'Crítico'
+      };
+      return labels[severity] || 'Médio';
+    }
+    
     // Navegação das seções do "Sobre o plugin"
     function initSobreNavigation() {
       const buttons = document.querySelectorAll('[data-section]');
