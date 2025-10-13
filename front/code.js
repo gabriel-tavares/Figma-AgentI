@@ -14,7 +14,8 @@ figma.showUI(__html__, { width: 380, height: 385 });
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
 // DESENVOLVIMENTO: usar localhost para testar mudanças no prompt
 // DESENVOLVIMENTO: const API_URL = "http://localhost:3000/analisar";
-const API_URL = "https://api.uxday.com.br/analisar";
+// PRODUÇÃO: usar servidor Coolify
+const API_URL = "http://c8880000404go88ck8gws4sw.148.230.78.115.sslip.io/analisar";
 function hexFromPaint(paint) {
     if (!paint || paint.type !== 'SOLID')
         return null;
@@ -843,7 +844,8 @@ figma.ui.onmessage = async (msg) => {
             }
             // Chamada para benchmark multi-IA
             // DESENVOLVIMENTO: const response = await fetch("http://localhost:3000/benchmark-multi-ai", {
-            const response = await fetch("https://api.uxday.com.br/benchmark-multi-ai", {
+            // PRODUÇÃO: usar servidor Coolify
+            const response = await fetch("http://c8880000404go88ck8gws4sw.148.230.78.115.sslip.io/benchmark-multi-ai", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
