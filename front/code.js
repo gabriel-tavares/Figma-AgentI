@@ -1071,43 +1071,21 @@ figma.ui.onmessage = async (msg) => {
             console.warn("Inter SemiBold não disponível, usando Bold como fallback:", e);
         }
         const layoutsPayload = [];
-        
-        // Processar cada resposta individual (correspondente a cada tela)
-        for (let telaIndex = 0; telaIndex < blocos.length && telaIndex < orderedSelection.length; telaIndex++) {
-            const blocoOriginal = blocos[telaIndex] || "";
-            const targetNode = orderedSelection[telaIndex]; // Usar a tela correspondente
-            
+        const node = orderedSelection[0]; // Usar o primeiro frame selecionado para todos os cards
+        const OFFSET_X = 80; // declara fora do loop
+        let currentY = node.y; // Posição Y base para o primeiro card
+        // Processar todos os blocos como partes individuais
+        const todasPartes = [];
+        for (let i = 0; i < blocos.length; i++) {
+            const blocoOriginal = blocos[i] || "";
             // Suporte a múltiplas heurísticas no mesmo bloco, separadas por [[[FIM_HEURISTICA]]]
             const partes = blocoOriginal.split("[[[FIM_HEURISTICA]]]").map((p) => p.trim()).filter((p) => p.length > 0);
             // Fallback para marcador antigo [[FIM_HEURISTICA]]
             if (partes.length === 0 && blocoOriginal.includes("[[FIM_HEURISTICA]]")) {
                 partes.push(blocoOriginal.split("[[FIM_HEURISTICA]]")[0].trim());
             }
-            
-            // Criar Auto Layout para esta tela específica
-            const OFFSET_X = 80;
-            const autoLayout = figma.createFrame();
-            autoLayout.name = `[AI] ${targetNode.name || 'Layout'}`;
-            autoLayout.layoutMode = "VERTICAL";
-            autoLayout.primaryAxisAlignItems = "MIN";
-            autoLayout.counterAxisAlignItems = "MIN";
-            autoLayout.primaryAxisSizingMode = "AUTO"; // Auto sizing na altura
-            autoLayout.counterAxisSizingMode = "AUTO"; // Auto sizing na largura
-            autoLayout.itemSpacing = 24;
-            autoLayout.paddingTop = 16;
-            autoLayout.paddingBottom = 16;
-            autoLayout.paddingLeft = 16;
-            autoLayout.paddingRight = 16;
-            autoLayout.fills = [{ type: "SOLID", color: { r: 0.98, g: 0.98, b: 0.98 } }]; // Fundo cinza claro
-            autoLayout.cornerRadius = 8;
-            autoLayout.strokes = [{ type: "SOLID", color: { r: 0.9, g: 0.9, b: 0.9 } }]; // Borda sutil
-            
-            // Posicionar o Auto Layout ao lado da tela
-            autoLayout.x = targetNode.x + targetNode.width + OFFSET_X;
-            autoLayout.y = targetNode.y;
-            
-            // Adicionar o Auto Layout à página
-            figma.currentPage.appendChild(autoLayout);
+            todasPartes.push(...partes);
+        }
         // === PRIORIZAÇÃO: problemas primeiro, positivos por último ===
         const MAX_POSITIVE_CARDS = 1; // 0 = ocultar positivos; 1 = mostrar apenas 1; ajuste como quiser.
         function extrairSeveridade(p) {
@@ -1126,16 +1104,16 @@ figma.ui.onmessage = async (msg) => {
                 return 3; // positivos por último
             return 2; // default ~ baixo
         }
-            const partesNegativas = partes
-                .filter(p => !/positiv/i.test(extrairSeveridade(p)))
-                .sort((a, b) => rankSeveridade(extrairSeveridade(a)) - rankSeveridade(extrairSeveridade(b)));
-            const partesPositivas = partes
-                .filter(p => /positiv/i.test(extrairSeveridade(p)))
-                .slice(0, MAX_POSITIVE_CARDS);
-            const partesOrdenadas = [...partesNegativas, ...partesPositivas];
-            const cardsPayload = [];
-            try {
-                for (const parte of partesOrdenadas) {
+        const partesNegativas = todasPartes
+            .filter(p => !/positiv/i.test(extrairSeveridade(p)))
+            .sort((a, b) => rankSeveridade(extrairSeveridade(a)) - rankSeveridade(extrairSeveridade(b)));
+        const partesPositivas = todasPartes
+            .filter(p => /positiv/i.test(extrairSeveridade(p)))
+            .slice(0, MAX_POSITIVE_CARDS);
+        const partesOrdenadas = [...partesNegativas, ...partesPositivas];
+        const cardsPayload = [];
+        try {
+            for (const parte of partesOrdenadas) {
                 // Quebra o bloco em linhas e remove espaços
                 let parteSan = parte;
                 const linhas = parteSan
@@ -1454,24 +1432,29 @@ figma.ui.onmessage = async (msg) => {
                     contentCol.appendChild(secRef);
                 card.appendChild(barraLateral);
                 card.appendChild(contentCol);
-                // Adiciona o card ao Auto Layout desta tela
-                autoLayout.appendChild(card);
+                // [POSICIONAMENTO] Posiciona o card ao lado do layout de origem (um card por frame).
+                card.x = node.x + node.width + OFFSET_X;
+                card.y = currentY;
+                // Adiciona o card finalizado à página atual do Figma
+                card.x = node.x + node.width + OFFSET_X;
+                card.y = currentY;
+                figma.currentPage.appendChild(card);
                 // Agora que o card foi realmente criado, refletimos no resumo
-                cardsPayload.push({ analise: parte, severidade: sevMeta.label, sevKey, severidadeRaw, nodeId: targetNode.id });
+                cardsPayload.push({ analise: parte, severidade: sevMeta.label, sevKey, severidadeRaw, nodeId: node.id });
+                currentY += card.height + 24;
             } // fim do for (const parte of partesOrdenadas)
             //barraLateral.resize(8, contentCol.height);
             // Nome do layout sem optional chaining
             // Nome do layout formatado para o cabeçalho do container
-            const nodeName = (targetNode && targetNode.name) ? targetNode.name : (`Layout`);
-                // Empilha o resumo desta tela para enviar à UI
-                layoutsPayload.push({ nome: nodeName, cards: cardsPayload });
-            }
-            catch (error) {
-                console.error(`[DEBUG] Erro ao processar análise da tela ${telaIndex + 1}:`, error);
-                // Continua mesmo se houver erro
-                layoutsPayload.push({ nome: `${targetNode.name || 'Layout'} (Erro)`, cards: [] });
-            }
-        } // fim do loop da tela
+            const nodeName = (node && node.name) ? node.name : (`Layout`);
+            // Empilha o resumo desta tela para enviar à UI
+            layoutsPayload.push({ nome: nodeName, cards: cardsPayload });
+        }
+        catch (error) {
+            console.error(`[DEBUG] Erro ao processar análise:`, error);
+            // Continua mesmo se houver erro
+            layoutsPayload.push({ nome: `Layout (Erro)`, cards: [] });
+        }
         // Envia resultados para a UI
         figma.ui.postMessage({ carregando: false, analises: layoutsPayload });
     }

@@ -1503,11 +1503,11 @@ if (secRef) contentCol.appendChild(secRef as SceneNode);
 // Nome do layout formatado para o cabeçalho do container
 const nodeName = (node && (node as any).name) ? (node as any).name : (`Layout`);
 // Empilha o resumo desta tela para enviar à UI
-layoutsPayload.push({ nome: `[AI] ${nodeName}`, cards: cardsPayload });
+layoutsPayload.push({ nome: nodeName, cards: cardsPayload });
     } catch (error) {
       console.error(`[DEBUG] Erro ao processar análise:`, error);
       // Continua mesmo se houver erro
-      layoutsPayload.push({ nome: `[AI] Layout (Erro)`, cards: [] });
+      layoutsPayload.push({ nome: `Layout (Erro)`, cards: [] });
     }
 
 // Envia resultados para a UI
