@@ -21,8 +21,17 @@
           message.includes('clipboard-write is not allowed') ||
           message.includes('display-capture is not allowed') ||
           message.includes('Local fonts') ||
-          message.includes('was preloaded using link preload')) {
-        return; // Suprimir apenas avisos específicos do Figma
+          message.includes('was preloaded using link preload') ||
+          message.includes('CORS policy') ||
+          message.includes('Access-Control-Allow-Headers') ||
+          message.includes('Access-Control-Allow-Origin') ||
+          message.includes('has been blocked by CORS policy') ||
+          message.includes('Cross-Origin Request Blocked') ||
+          message.includes('Refused to connect to') ||
+          message.includes('violates the following Content Security Policy') ||
+          message.includes('default-src') ||
+          message.includes('connect-src')) {
+        return; // Suprimir avisos específicos do Figma, CORS e CSP
       }
       originalConsoleWarn.apply(console, args);
     };
@@ -33,11 +42,29 @@
           message.includes('camera is not allowed') ||
           message.includes('microphone is not allowed') ||
           message.includes('clipboard-write is not allowed') ||
-          message.includes('display-capture is not allowed')) {
-        return; // Suprimir apenas erros específicos do Figma
+          message.includes('display-capture is not allowed') ||
+          message.includes('CORS policy') ||
+          message.includes('Access-Control-Allow-Headers') ||
+          message.includes('Access-Control-Allow-Origin') ||
+          message.includes('has been blocked by CORS policy') ||
+          message.includes('Cross-Origin Request Blocked') ||
+          message.includes('Refused to connect to') ||
+          message.includes('violates the following Content Security Policy') ||
+          message.includes('default-src') ||
+          message.includes('connect-src')) {
+        return; // Suprimir erros específicos do Figma, CORS e CSP
       }
       originalConsoleError.apply(console, args);
     };
+  </script>
+
+  <!-- Guard para evitar chamadas desnecessárias de getDisplayMedia -->
+  <script>
+    // Verificar se display-capture é permitido antes de qualquer uso
+    const p = document.permissionsPolicy || document.featurePolicy;
+    if (!p?.allowsFeature?.('display-capture') && navigator.mediaDevices) {
+      navigator.mediaDevices.getDisplayMedia = undefined;
+    }
   </script>
 
   <!-- Fonte -->
@@ -60,7 +87,42 @@
 
     .navbar {border-bottom:1px solid #cccccc; background: linear-gradient(130deg, #6D1FEC 12.00%, #00F6E7 150.42%);
 }
-    .navbar .nav-link { color:#fff; font-weight:600;} 
+    .navbar .nav-link { color:#fff; font-weight:600;}
+    
+    /* Button group clean */
+    .btn-group-clean {
+      background: #fff;
+      border-radius: 8px;
+      padding: 4px;
+      border: 1px solid #e9ecef;
+      display: flex;
+      width: 100%;
+    }
+    
+    .btn-clean {
+      background: transparent;
+      border: none;
+      color: #6c757d;
+      font-weight: 600;
+      font-size: 10px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      flex: 1;
+      text-align: center;
+    }
+    
+    .btn-clean:hover {
+      background: #e9ecef;
+      color: #495057;
+    }
+    
+    .btn-clean.active {
+      background: white;
+      color: #6D1FEC;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    } 
     .navbar .nav-link.active { color:#fff; font-weight:600;  text-decoration:underline;}
     .selecionados {background: #D9E7FA !important; color:#2862B0 !important; font-size: 10px; font-weight: 600; padding:6px 8px 5px 8px !important;}
     h5 {color: #2e2883;}
@@ -135,8 +197,32 @@ fieldset[disabled] .btn-plugin.active {
     @keyframes tw-blink { 0%,49%{visibility:visible;} 50%,100%{visibility:hidden;} }
 
     /* Cards do resumo */
-    #summary-list-side { max-height: calc(100vh - 120px); overflow-y: auto; }
-    .summary-card { background:#f7f7f8; border:1px solid #e7e7ea; border-radius: var(--radius-card); padding:14px 16px; margin-bottom:12px; }
+    #summary-list-side {
+      height: 299px;
+      overflow-y: overlay;
+      padding: 0;
+      margin: 0;
+      scrollbar-gutter: stable;
+    }
+    
+    /* Customizar scrollbar para ser mais discreto */
+    #summary-list-side::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    #summary-list-side::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    #summary-list-side::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+    }
+    
+    #summary-list-side::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+    .summary-card { background:#ffffff; border:1px solid #e7e7ea; border-radius: var(--radius-card); padding:14px 16px; margin-bottom:12px; }
     .summary-title { margin-bottom:6px; }
     .summary-row { display:flex; gap:12px; flex-wrap:wrap; }
     .pill { background:#fff; border:1px solid #dee2e6; border-radius:999px; padding:6px 10px; font-weight:600; font-size:12px; }
@@ -172,7 +258,13 @@ fieldset[disabled] .btn-plugin.active {
     }
     .sev-badge.off { background: transparent; color: var(--sev-color); }
 
-    #summary-list-side { max-height: calc(100vh - 120px); overflow-y: auto; }
+    #summary-list-side {
+      height: 299px;
+      overflow-y: overlay;
+      padding: 0;
+      margin: 0;
+      scrollbar-gutter: stable;
+    }
     .issues .issue.clickable { cursor: pointer; }
     .sev-badge{padding: 2px 0 2px 0; font-size: 10px;}
     .sev-badge.sev-alto {border:1px solid #d0224140 !important; background:#d0224126!important; color:#B11D37!important; }
@@ -225,10 +317,7 @@ fieldset[disabled] .btn-plugin.active {
       transition: all 0.2s; 
     }
     
-    .accordion-item:hover { 
-      border-color: #adb5bd; 
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); 
-    }
+    /* .accordion-item:hover removido */
     
     .accordion-header { 
       padding: 16px 20px; 
@@ -383,54 +472,67 @@ fieldset[disabled] .btn-plugin.active {
     
     .severity-badge { 
       display: inline-block; 
-      padding: 4px 8px; 
+      padding: 2px 8px 2px 8px; 
       border-radius: 12px; 
-      font-size: 11px; 
+      font-size: 10px; 
       font-weight: 600; 
-      text-transform: uppercase; 
+      text-transform: capitalize; 
       margin-right: 8px; 
     }
     
     .severity-alto { 
-      background: #f8d7da; 
-      color: #721c24; 
+      background: #F50000; 
+      color: #fff; 
+      border: 1px solid #F50000;
     }
     
     .severity-medio { 
-      background: #fff3cd; 
-      color: #856404; 
+      background: #FECA2A; 
+      color: #4c3e12; 
+      border: 1px solid #FECA2A;
     }
     
     .severity-baixo { 
       background: #d1ecf1; 
       color: #0c5460; 
+      border: 1px solid #0c5460;
     }
     
     .severity-positiva { 
-      background: #d4edda; 
-      color: #155724; 
+      background: #23D2EF; 
+      color: #0a333a; 
+      border: 1px solid #23D2EF;
+    }
+    
+    .severity-positivo { 
+      background: #23D2EF; 
+      color: #0a333a; 
+      border: 1px solid #23D2EF;
     }
 
     /* ====== ESTILOS ESPECÍFICOS PARA O PAINEL RESUMO ====== */
     .analysis-results-container {
       margin-top: 0;
-      padding: 0;
+      padding: 12px;
       background: #fff;
       margin-bottom: 0;
     }
     
-    .screen-name-resumo { 
-      font-size: 12px; 
-      font-weight: 600; 
-      color: #1a1a1a; 
-      margin-top: 16px;
-      margin-bottom: 8px; 
+    .screen-dropdown {
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #1a1a1a;
+      min-width: 200px;
     }
     
     .accordion-container-resumo { 
-      display: flex; 
+      display: flex;
       flex-direction: column; 
-      gap: 4px; 
+      gap: 8px; 
     }
     
     .accordion-item-resumo { 
@@ -439,12 +541,11 @@ fieldset[disabled] .btn-plugin.active {
       overflow: hidden; 
       background: white; 
       transition: all 0.2s; 
+      width: 100%;
+      display: block;
     }
     
-    .accordion-item-resumo:hover { 
-      border-color: #adb5bd; 
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05); 
-    }
+    /* .accordion-item-resumo:hover removido */
     
     .accordion-header-resumo { 
       padding: 2px 8px; 
@@ -452,17 +553,17 @@ fieldset[disabled] .btn-plugin.active {
       align-items: center; 
       justify-content: space-between; 
       cursor: pointer; 
-      background: #f8f9fa; 
+      background: #ffffff; 
       border-bottom: 1px solid #e9ecef; 
     }
     
     .accordion-second-line {
-      padding: 4px 8px;
+      padding: 8px 8px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: #f8f9fa;
-      border-bottom: 1px solid #e9ecef;
+      background: #ffffff;
+      /* border-bottom: 1px solid #e9ecef; */
     }
     
     .accordion-title-resumo { 
@@ -548,12 +649,6 @@ fieldset[disabled] .btn-plugin.active {
           </li>
           <li class="nav-item px-2">
             <a id="nav-guia" class="nav-link" href="#" data-screen="guia-screen">Guia rápido</a>
-          </li>
-          <li class="nav-item px-2">
-            <a id="nav-benchmark" class="nav-link" href="#" data-screen="benchmark-screen">Bench AI</a>
-          </li>
-          <li class="nav-item px-2">
-            <a id="nav-resultados" class="nav-link" href="#" data-screen="resultados-screen">Resultados</a>
           </li>
           <li class="nav-item px-2">
             <a id="nav-sobre" class="nav-link" href="#" data-screen="sobre-screen">Sobre o plugin</a>
@@ -729,6 +824,11 @@ fieldset[disabled] .btn-plugin.active {
         <div class="card-header d-flex align-items-center">
           <p class="help-text fw-normal m-0">Teste a interface de resultados ou visualize dados de análises anteriores.</p>      
         </div>
+        <div class="card-body">
+          <div id="analises" style="display: none;"></div>
+          <div id="resumo-container" style="display: none;"></div>
+        </div>
+      </div>
 
         <div class="card-body align-items-center align-middle">
           <button id="btnTestResults" class="btn btn-plugin btn-dark btn-md w-100 fw-semibold mb-3">🧪 Testar Interface de Resultados</button>
@@ -746,19 +846,167 @@ fieldset[disabled] .btn-plugin.active {
 
     <!-- ====== TELA 5: SOBRE O PLUGIN ====== -->
     <div id="sobre-screen" class="screen">
-      <div class="d-flex align-items-center mb-2 align-middle">
-        <h5 class="fw-semibold mb-0">Sobre o plugin</h5>
+      <!-- Título fixo -->
+      <div class="d-flex align-items-center mb-3 align-middle title-header">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g clip-path="url(#clip0_sobre_plugin)">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M10.2387 2.55414C9.33003 1.89084 8.21118 1.5 7 1.5C3.96243 1.5 1.5 3.96243 1.5 7C1.5 7.41421 1.16421 7.75 0.75 7.75C0.335787 7.75 0 7.41421 0 7C0 3.13401 3.13401 0 7 0C8.62498 0 10.1216 0.554437 11.3094 1.48344L12.1464 0.646461C12.2894 0.503462 12.5045 0.460684 12.6913 0.538075C12.8781 0.615465 13 0.797783 13 1.00001V3.50001C13 3.77616 12.7761 4.00001 12.5 4.00001H9.99996C9.79773 4.00001 9.61541 3.87819 9.53802 3.69136C9.46063 3.50452 9.50341 3.28946 9.64641 3.14646L10.2387 2.55414ZM12.5 7C12.5 6.58579 12.8358 6.25 13.25 6.25C13.6642 6.25 14 6.58579 14 7C14 10.866 10.866 14 7 14C5.37501 14 3.87836 13.4456 2.69056 12.5166L1.85355 13.3536C1.71055 13.4966 1.4955 13.5393 1.30866 13.4619C1.12182 13.3845 1 13.2022 1 13V10.5C1 10.2239 1.22386 10 1.5 10H4C4.20223 10 4.38455 10.1218 4.46194 10.3087C4.53933 10.4955 4.49655 10.7106 4.35355 10.8536L3.76126 11.4459C4.66996 12.1092 5.78882 12.5 7 12.5C10.0376 12.5 12.5 10.0376 12.5 7ZM6.18549 4.0314C6.37297 3.1605 7.60579 3.15428 7.80095 4.02436L7.82624 4.13711C8.06479 5.2006 8.90583 6.0077 9.95161 6.19271C10.8495 6.35154 10.8495 7.64846 9.95161 7.80729C8.90583 7.9923 8.06479 8.7994 7.82624 9.86289L7.80095 9.97565C7.60579 10.8457 6.37297 10.8395 6.18549 9.9686L6.16466 9.87185C5.93483 8.80423 5.09471 7.99103 4.04706 7.8057C3.15098 7.64717 3.15097 6.35283 4.04706 6.19431C5.09471 6.00897 5.93483 5.19577 6.16466 4.12815L6.18549 4.0314Z" fill="url(#paint0_linear_sobre_plugin)"/>
+        </g>
+        <defs>
+        <linearGradient id="paint0_linear_sobre_plugin" x1="0.537934" y1="1.13134" x2="16.4943" y2="10.1246" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#00F6E7"/>
+        <stop offset="1" stop-color="#6D1FEC"/>
+        </linearGradient>
+        <clipPath id="clip0_sobre_plugin">
+        <rect width="14" height="14" fill="white"/>
+        </clipPath>
+        </defs>
+        </svg>
+        <h5 class="fw-semibold mb-0 ps-2">Sobre o plugin</h5>
       </div>
-      <div class="bg-white p-3 rounded-3 border">
-        <p class="m-0">
-          Plugin de <strong>análise heurística</strong> para Figma com apoio de IA. 
-          Avalia rapidamente a usabilidade das suas telas, gera cards com achados e 
-          links para consulta. Foque no design — o resto deixe com <strong>Agente</strong>.
-        </p>
+      
+      <!-- Botões de navegação fixos -->
+      <div class="btn-group-clean w-100 mb-3" role="group" aria-label="Navegação sobre o plugin">
+        <button type="button" class="btn-clean active" data-section="sobre">Sobre</button>
+        <button type="button" class="btn-clean" data-section="equipe">Equipe</button>
+        <button type="button" class="btn-clean" data-section="dados">Dados & Privacidade</button>
+        <button type="button" class="btn-clean" data-section="creditos">Créditos</button>
+        <button type="button" class="btn-clean" data-section="apoie">Apoie</button>
       </div>
-      <div class="mt-3 small text-muted">
-        Métodos: Heurísticas de Nielsen e Vieses Cognitivos. Painel de resumo com severidade e referências.
-        <br><strong>Novo:</strong> Bench AI com OpenRouter para comparar diferentes modelos.
+
+      <!-- Conteúdo das seções com scroll -->
+      <div class="bg-white p-3 rounded-3 border" style="height: 210px; overflow-y: auto;">
+        
+        <!-- Seção Sobre -->
+        <div id="sobre-content" class="section-content">
+          <p class="m-0">
+            Este plugin oferece direcionamentos iniciais sobre usabilidade, apontando riscos e oportunidades.
+            Use os achados como insumos para discussão, não como verdades absolutas.
+          </p>
+          <p class="mt-2 mb-0">
+            A decisão final deve considerar contexto do produto, métricas, acessibilidade e testes com usuários.
+            A análise humana de UX — considerando objetivos de negócio, contexto, público e restrições — segue indispensável para a decisão final.
+          </p>
+        </div>
+
+        <!-- Seção Equipe -->
+        <div id="equipe-content" class="section-content d-none">
+          <p class="mb-3">Equipe de desenvolvimento do Agent.I:</p>
+          
+          <div class="row g-2">
+            <div class="col-12">
+              <div class="d-flex align-items-center p-2 bg-light rounded">
+                <div class="me-3">
+                  <img src="https://raw.githubusercontent.com/gtavares/Figma-AgentI/main/front/assets/images/barbara-montes.jpg" alt="Bárbara Montes" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                  <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; display: none;">
+                    <span class="fw-bold">B</span>
+                  </div>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="fw-semibold">Bárbara Montes</div>
+                  <div class="small text-muted">UX Designer & Product Manager</div>
+                  <a href="https://www.linkedin.com/in/b%C3%A1rbara-montes/" target="_blank" class="small text-primary text-decoration-none">LinkedIn</a>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-12">
+              <div class="d-flex align-items-center p-2 bg-light rounded">
+                <div class="me-3">
+                  <img src="https://raw.githubusercontent.com/gtavares/Figma-AgentI/main/front/assets/images/gabriel-tavares.jpg" alt="Gabriel Tavares" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                  <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; display: none;">
+                    <span class="fw-bold">G</span>
+                  </div>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="fw-semibold">Gabriel Tavares</div>
+                  <div class="small text-muted">Frontend Developer & UX Engineer</div>
+                  <a href="https://www.linkedin.com/in/gtavares/" target="_blank" class="small text-primary text-decoration-none">LinkedIn</a>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-12">
+              <div class="d-flex align-items-center p-2 bg-light rounded">
+                <div class="me-3">
+                  <img src="https://raw.githubusercontent.com/gtavares/Figma-AgentI/main/front/assets/images/simone-meirelles.jpg" alt="Simone Meirelles" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; display: none;">
+                    <span class="fw-bold">S</span>
+                  </div>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="fw-semibold">Simone Meirelles</div>
+                  <div class="small text-muted">UX Researcher & Designer</div>
+                  <a href="https://www.linkedin.com/in/simone-meirelles/" target="_blank" class="small text-primary text-decoration-none">LinkedIn</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seção Dados & Privacidade -->
+        <div id="dados-content" class="section-content d-none">
+          <h6 class="fw-semibold mb-2">Política de Privacidade</h6>
+          <p class="mb-2">
+            Este plugin processa apenas os frames selecionados no Figma para análise de usabilidade.
+            Nenhum dado pessoal é coletado ou armazenado.
+          </p>
+          <p class="mb-2">
+            As imagens dos frames são enviadas temporariamente para análise por IA e não são armazenadas permanentemente.
+          </p>
+          <p class="mb-0">
+            Todos os dados são processados de forma anônima e segura, seguindo as melhores práticas de privacidade.
+          </p>
+        </div>
+
+        <!-- Seção Créditos -->
+        <div id="creditos-content" class="section-content d-none">
+          <h6 class="fw-semibold mb-2">Créditos e Referências</h6>
+          <ul class="mb-2">
+            <li><strong>Heurísticas de Nielsen:</strong> Jakob Nielsen e Rolf Molich</li>
+            <li><strong>Vieses Cognitivos:</strong> Daniel Kahneman e Amos Tversky</li>
+            <li><strong>Regras de Ouro:</strong> Ben Shneiderman</li>
+            <li><strong>Usabilidade Cognitiva:</strong> Gerhardt-Powals</li>
+          </ul>
+          <p class="mb-0">
+            Este plugin foi desenvolvido seguindo as melhores práticas de UX e design de interfaces.
+          </p>
+        </div>
+
+        <!-- Seção Apoie -->
+        <div id="apoie-content" class="section-content d-none">
+          <h6 class="fw-semibold mb-2">Como Apoiar</h6>
+          <p class="mb-2">
+            Gostou do plugin? Considere apoiar o desenvolvimento:
+          </p>
+          <div class="d-grid gap-2">
+            <button class="btn btn-outline-primary btn-sm" type="button">
+              ⭐ Avaliar no Figma Community
+            </button>
+            <button class="btn btn-outline-success btn-sm" type="button">
+              💝 Fazer uma doação
+            </button>
+            <button class="btn btn-outline-info btn-sm" type="button">
+              🐛 Reportar bug
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" type="button">
+              💡 Sugerir melhoria
+            </button>
+          </div>
+          
+          <hr class="my-3">
+          
+          <h6 class="fw-semibold mb-2">Funcionalidades</h6>
+          <div class="d-grid gap-2">
+            <button class="btn btn-gradient btn-sm" type="button" onclick="showScreen('benchmark-screen')">
+              🤖 Bench AI
+            </button>
+            <button class="btn btn-gradient btn-sm" type="button" onclick="showScreen('resultados-screen')">
+              📊 Resultados
+            </button>
+          </div>
+        </div>
+        
       </div>
     </div>
 
@@ -805,9 +1053,10 @@ fieldset[disabled] .btn-plugin.active {
           </div>
         </div>
       </div>
-      <div class="px-3 py-2 align-items-center" style="border-bottom: 1px solid #eee; border-top: 1px solid #eee;">      
-      <div class="p-3">
-        </div>
+      <div class="px-3 py-2 align-items-center d-flex" style="border-bottom: 1px solid #eee; border-top: 1px solid #eee;">
+        <select id="screenDropdown" class="screen-dropdown" onchange="changeScreen(this.value)">
+          <option value="Tela de Teste - Onboarding" selected>Tela de Teste - Onboarding</option>
+        </select>
       </div>
       
       <!-- Container para o resumo e resultados detalhados -->
@@ -944,6 +1193,37 @@ fieldset[disabled] .btn-plugin.active {
     function normalizeLink(url){ if(!url) return ""; return /^https?:\/\//i.test(url) ? url : "https://" + url; }
     function hideMensagem(){ const el = document.getElementById("mensagem-erro"); el.textContent=""; el.classList.add("d-none"); }
     function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+    
+    // Navegação das seções do "Sobre o plugin"
+    function initSobreNavigation() {
+      const buttons = document.querySelectorAll('[data-section]');
+      const contents = document.querySelectorAll('.section-content');
+      
+      buttons.forEach(button => {
+        button.addEventListener('click', function() {
+          const section = this.getAttribute('data-section');
+          
+          // Remove active de todos os botões
+          buttons.forEach(btn => btn.classList.remove('active'));
+          
+          // Adiciona active ao botão clicado
+          this.classList.add('active');
+          
+          // Esconde todos os conteúdos
+          contents.forEach(content => content.classList.add('d-none'));
+          // Mostra o conteúdo correspondente
+          const targetContent = document.getElementById(section + '-content');
+          if (targetContent) {
+            targetContent.classList.remove('d-none');
+          }
+        });
+      });
+    }
+    
+    // Inicializar quando o DOM estiver carregado
+    document.addEventListener('DOMContentLoaded', function() {
+      initSobreNavigation();
+    });
 
     
     // -------- Helpers de extração (resumo) --------
@@ -1329,6 +1609,7 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
         };
         
         showAnalysisResultsInResumo(testData);
+        showAnalysisResultsInScreen(testData);
         
         // Abrir o painel resumo automaticamente
         const oc = new bootstrap.Offcanvas(document.getElementById('offResumo'));
@@ -1347,6 +1628,81 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
           showToast("Nenhuma análise recente encontrada. Faça uma análise primeiro.", "warning", 3000);
         }
       });
+    }
+
+    // Função para exibir resultados da análise na tela de resultados
+    function showAnalysisResultsInScreen(analysisData) {
+      const resumoContainer = document.getElementById("resumo-container");
+      
+      if (!resumoContainer) {
+        console.error('❌ Container resumo-container não encontrado!');
+        return;
+      }
+
+      const screenName = analysisData.screenName || 'Tela analisada';
+      const achados = analysisData.achados || [];
+
+      if (achados.length === 0) {
+        resumoContainer.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #6c757d;">
+            <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">🎉</div>
+            <h6 class="mb-2">Nenhum problema encontrado!</h6>
+            <p class="mb-0 small">A interface está seguindo as melhores práticas de usabilidade.</p>
+          </div>
+        `;
+        resumoContainer.style.display = "block";
+        return;
+      }
+
+      // Substituir o conteúdo do resumo com a interface de resultados
+      resumoContainer.innerHTML = `
+        <div class="analysis-results-container">
+          <div class="accordion-container-resumo">
+            <div class="screen-name">${screenName}</div>
+            <div class="accordion-container">
+              ${achados.map((achado, index) => `
+                <div class="accordion-item-resumo">
+                  <div class="accordion-header-resumo" onclick="toggleAccordionResumo(${index})">
+                    <div class="accordion-title-resumo">
+                      <span class="severity-badge severity-${achado.severidade || 'medium'}">${getSeverityLabel(achado.severidade || 'medium')}</span>
+                      <span class="title-text">${achado.titulo_card || 'Achado de usabilidade'}</span>
+                    </div>
+                    <div class="accordion-icon-resumo">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="accordion-content-resumo" id="content-${index}">
+                    <div class="content-section">
+                      <h6 class="section-title">📋 Descrição</h6>
+                      <p class="section-content">${achado.descricao || 'Descrição não disponível.'}</p>
+                    </div>
+                    <div class="content-section">
+                      <h6 class="section-title">💡 Sugestão de Melhoria</h6>
+                      <p class="section-content">${achado.sugestao_melhoria || 'Sugestão não disponível.'}</p>
+                    </div>
+                    <div class="content-section">
+                      <h6 class="section-title">🔍 Justificativa</h6>
+                      <p class="section-content">${achado.justificativa || 'Justificativa não disponível.'}</p>
+                    </div>
+                    <div class="content-section">
+                      <h6 class="section-title">📚 Referências</h6>
+                      <div class="references-list">
+                        ${(achado.referencias || []).map(ref => `
+                          <a href="${ref}" target="_blank" class="reference-link">${ref}</a>
+                        `).join('')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      resumoContainer.style.display = "block";
     }
 
     // Função para exibir resultados da análise no painel Resumo
@@ -1374,8 +1730,7 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
 
       // Substituir o conteúdo do resumo com a interface de resultados
       resumoContainer.innerHTML = `
-        <div class="analysis-results-container" style="padding: 0 12px;">
-          <div class="screen-name-resumo">${screenName}</div>
+        <div class="analysis-results-container">
           <div class="accordion-container-resumo">
             ${achados.map((achado, index) => `
               <div class="accordion-item-resumo">
@@ -1391,10 +1746,26 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
                   <span class="severity-badge severity-${achado.severidade}">${achado.severidade}</span>
                   <div class="feedback-buttons">
                     <button class="feedback-btn like" onclick="handleFeedback(${index}, 'like', event)">
-                      👍
+                      <svg width="14" height="13" viewBox="0 0 14 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M4.45799 12.1656C4.79396 12.3258 5.16144 12.4089 5.53361 12.4089H10.8797C12.1113 12.4089 13.1594 11.5119 13.3497 10.295L13.9755 6.29179C14.1652 5.07879 13.2273 3.98287 11.9995 3.98287H8.71581V1.62525C8.71581 0.727646 7.98816 0 7.09056 0C6.50226 0 5.95989 0.31792 5.67247 0.831236L3.59513 4.54131C3.46977 4.76521 3.40394 5.01753 3.40394 5.27413L3.40393 10.7165C3.40393 11.2949 3.73645 11.8217 4.25856 12.0706L4.45799 12.1656ZM0.996355 4.72454C0.732106 4.72454 0.478679 4.82951 0.291826 5.01637C0.104972 5.20322 -2.3101e-08 5.45665 0 5.7209L4.4696e-07 10.8335C4.70062e-07 11.0977 0.104972 11.3512 0.291826 11.538C0.478679 11.7249 0.732105 11.8298 0.996355 11.8298L1.49293 11.8296C1.76898 11.8295 1.99271 11.6057 1.99271 11.3296V5.22433C1.99271 5.09168 1.94 4.96447 1.84619 4.8707C1.75237 4.77692 1.62514 4.72427 1.49249 4.72433L0.996355 4.72454Z" fill="url(#paint0_linear_1124_3410)"/>
+                        <defs>
+                          <linearGradient id="paint0_linear_1124_3410" x1="2.28845" y1="2.38633" x2="12.9148" y2="9.0289" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#FFC700"/>
+                            <stop offset="1" stop-color="#02BE6F"/>
+                          </linearGradient>
+                        </defs>
+                      </svg>
                     </button>
                     <button class="feedback-btn dislike" onclick="handleFeedback(${index}, 'dislike', event)">
-                      👎
+                      <svg width="14" height="13" viewBox="0 0 14 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M9.54201 0.242567C9.20604 0.0823666 8.83856 -0.000732873 8.46639 -0.000732906L3.1203 -0.000733373C1.8887 -0.000733481 0.840602 0.896266 0.650302 2.11317L0.0245014 6.11642C-0.165199 7.32942 0.772701 8.42534 2.0005 8.42534L5.28419 8.42534L5.28419 10.783C5.28419 11.6806 6.01184 12.4082 6.90944 12.4082C7.49774 12.4082 8.04011 12.0903 8.32753 11.577L10.4049 7.8669C10.5302 7.643 10.5961 7.39068 10.5961 7.13408L10.5961 1.69167C10.5961 1.11327 10.2636 0.586466 9.74144 0.337566L9.54201 0.242567ZM13.0036 7.68367C13.2679 7.68367 13.5213 7.5787 13.7082 7.39184C13.895 7.20499 14 6.95156 14 6.68731L14 1.57467C14 1.31047 13.895 1.05697 13.7082 0.870167C13.5213 0.683267 13.2679 0.578367 13.0036 0.578367L12.5071 0.578567C12.231 0.578667 12.0073 0.802467 12.0073 1.07857L12.0073 7.18388C12.0073 7.31653 12.06 7.44374 12.1538 7.53751C12.2476 7.63129 12.3749 7.68394 12.5075 7.68388L13.0036 7.68367Z" fill="url(#paint0_linear_1124_3414)"/>
+                        <defs>
+                          <linearGradient id="paint0_linear_1124_3414" x1="-1.50767" y1="-2.33567" x2="16.2696" y2="10.8682" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#FF9A23"/>
+                            <stop offset="1" stop-color="#FF0843"/>
+                          </linearGradient>
+                        </defs>
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -1404,9 +1775,7 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
                       <div class="heuristic-method">${achado.heuristica_metodo}</div>
                       <div class="heuristic-description">${achado.descricao}</div>
                     </div>
-                    <div style="margin-bottom: 12px;">
-                      <strong>Justificativa:</strong> ${achado.justificativa}
-                    </div>
+                    <!-- Justificativa removida -->
                     <a href="https://www.nngroup.com/articles/ten-usability-heuristics/" 
                        target="_blank" 
                        class="reference-link"
@@ -1452,10 +1821,26 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
             <div class="accordion-controls">
               <div class="feedback-buttons">
                 <button class="feedback-btn like" onclick="handleFeedback(${index}, 'like', event)">
-                  👍
+                  <svg width="14" height="13" viewBox="0 0 14 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.45799 12.1656C4.79396 12.3258 5.16144 12.4089 5.53361 12.4089H10.8797C12.1113 12.4089 13.1594 11.5119 13.3497 10.295L13.9755 6.29179C14.1652 5.07879 13.2273 3.98287 11.9995 3.98287H8.71581V1.62525C8.71581 0.727646 7.98816 0 7.09056 0C6.50226 0 5.95989 0.31792 5.67247 0.831236L3.59513 4.54131C3.46977 4.76521 3.40394 5.01753 3.40394 5.27413L3.40393 10.7165C3.40393 11.2949 3.73645 11.8217 4.25856 12.0706L4.45799 12.1656ZM0.996355 4.72454C0.732106 4.72454 0.478679 4.82951 0.291826 5.01637C0.104972 5.20322 -2.3101e-08 5.45665 0 5.7209L4.4696e-07 10.8335C4.70062e-07 11.0977 0.104972 11.3512 0.291826 11.538C0.478679 11.7249 0.732105 11.8298 0.996355 11.8298L1.49293 11.8296C1.76898 11.8295 1.99271 11.6057 1.99271 11.3296V5.22433C1.99271 5.09168 1.94 4.96447 1.84619 4.8707C1.75237 4.77692 1.62514 4.72427 1.49249 4.72433L0.996355 4.72454Z" fill="url(#paint0_linear_1124_3410)"/>
+                    <defs>
+                      <linearGradient id="paint0_linear_1124_3410" x1="2.28845" y1="2.38633" x2="12.9148" y2="9.0289" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#FFC700"/>
+                        <stop offset="1" stop-color="#02BE6F"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
                 </button>
                 <button class="feedback-btn dislike" onclick="handleFeedback(${index}, 'dislike', event)">
-                  👎
+                  <svg width="14" height="13" viewBox="0 0 14 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M9.54201 0.242567C9.20604 0.0823666 8.83856 -0.000732873 8.46639 -0.000732906L3.1203 -0.000733373C1.8887 -0.000733481 0.840602 0.896266 0.650302 2.11317L0.0245014 6.11642C-0.165199 7.32942 0.772701 8.42534 2.0005 8.42534L5.28419 8.42534L5.28419 10.783C5.28419 11.6806 6.01184 12.4082 6.90944 12.4082C7.49774 12.4082 8.04011 12.0903 8.32753 11.577L10.4049 7.8669C10.5302 7.643 10.5961 7.39068 10.5961 7.13408L10.5961 1.69167C10.5961 1.11327 10.2636 0.586466 9.74144 0.337566L9.54201 0.242567ZM13.0036 7.68367C13.2679 7.68367 13.5213 7.5787 13.7082 7.39184C13.895 7.20499 14 6.95156 14 6.68731L14 1.57467C14 1.31047 13.895 1.05697 13.7082 0.870167C13.5213 0.683267 13.2679 0.578367 13.0036 0.578367L12.5071 0.578567C12.231 0.578667 12.0073 0.802467 12.0073 1.07857L12.0073 7.18388C12.0073 7.31653 12.06 7.44374 12.1538 7.53751C12.2476 7.63129 12.3749 7.68394 12.5075 7.68388L13.0036 7.68367Z" fill="url(#paint0_linear_1124_3414)"/>
+                    <defs>
+                      <linearGradient id="paint0_linear_1124_3414" x1="-1.50767" y1="-2.33567" x2="16.2696" y2="10.8682" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#FF9A23"/>
+                        <stop offset="1" stop-color="#FF0843"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
                 </button>
               </div>
               <button class="expand-btn" id="expandBtn${index}">▼</button>
@@ -1471,9 +1856,7 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
                 <div class="suggestion-title">Sugestão de melhoria:</div>
                 <div class="suggestion-text">${achado.sugestao_melhoria}</div>
               </div>
-              <div style="margin-bottom: 12px;">
-                <strong>Justificativa:</strong> ${achado.justificativa}
-              </div>
+              <!-- Justificativa removida -->
               <a href="https://www.nngroup.com/articles/ten-usability-heuristics/" 
                  target="_blank" 
                  class="reference-link"
@@ -1529,6 +1912,13 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
         content.classList.add('expanded');
         expandBtn.classList.add('expanded');
       }
+    };
+
+    // Função para mudar de tela no dropdown
+    window.changeScreen = function(screenName) {
+      console.log('Mudando para tela:', screenName);
+      // TODO: Implementar lógica para carregar dados da tela selecionada
+      // Por enquanto, apenas log da funcionalidade
     };
 
     // Função para lidar com feedback
@@ -1917,6 +2307,12 @@ function showToast(texto, variant = "danger", delay = 3000){
               setTimeout(() => {
                 showAnalysisResultsInResumo(analysisData);
               }, 1000);
+              
+              // Exibir cards na tela de resultados
+              setTimeout(() => {
+                showAnalysisResultsInScreen(analysisData);
+              }, 1000);
+              
               hasDetailedResults = true;
             }
           }
