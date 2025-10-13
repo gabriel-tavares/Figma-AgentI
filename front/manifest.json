@@ -4,5 +4,19 @@
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
-  "editorType": ["figma"]
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://agenti.uxday.com.br",
+      "https://cdn.jsdelivr.net",
+      "https://cdnjs.cloudflare.com",
+      "https://fonts.googleapis.com",
+      "https://fonts.gstatic.com",
+      "https://lottie.host"
+    ],
+    "devAllowedDomains": [
+      "https://localhost:3000"
+    ],
+    "reasoning": "Plugin needs to communicate with backend API for UX analysis processing and load external CSS/font resources"
+  }
 }
