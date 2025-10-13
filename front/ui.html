@@ -703,7 +703,6 @@ fieldset[disabled] .btn-plugin.active {
        <div class="card-body pt-0">
         <button id="analisarBtn" class="btn btn-plugin btn-dark btn-md w-100 fw-semibold">Analisar</button>
         <div id="mensagem-erro" class="p-1 alert alert-danger d-flex d-none align-items-center justify-content-center fw-semibold alert-dismissible fade show" role="alert"></div>
-        <button id="btnVerResultados" class="btn btn-outline-primary btn-sm w-100 mt-2" style="display: none;">📊 Ver Resultados Detalhados</button>
       </div>
       </div>
     </div>
@@ -1608,19 +1607,6 @@ if (confirmBtn) confirmBtn.addEventListener("click", function(){
       });
     }
 
-    // Botão para ver resultados detalhados
-    const btnVerResultados = document.getElementById("btnVerResultados");
-    if (btnVerResultados) {
-      btnVerResultados.addEventListener("click", () => {
-        // Armazenar dados da última análise para exibir
-        if (window.lastAnalysisData) {
-          showAnalysisResults(window.lastAnalysisData);
-        } else {
-          showToast("Nenhuma análise recente encontrada. Faça uma análise primeiro.", "warning", 3000);
-        }
-      });
-    }
-
     // Função para exibir resultados da análise na tela de resultados
     function showAnalysisResultsInScreen(analysisData) {
       const resumoContainer = document.getElementById("resumo-container");
@@ -2324,12 +2310,6 @@ function showToast(texto, variant = "danger", delay = 3000){
               
               // Armazenar dados para uso posterior
               window.lastAnalysisData = analysisData;
-              
-              // Mostrar botão para ver resultados detalhados
-              const btnVerResultados = document.getElementById("btnVerResultados");
-              if (btnVerResultados) {
-                btnVerResultados.style.display = "block";
-              }
               
               // Exibir interface de resultados no painel Resumo
               setTimeout(() => {
