@@ -2,7 +2,21 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-    <title>Agent.I – UI</title>
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()" />
+  <title>Agent.I – UI</title>
+  
+  <!-- Suprimir avisos de Permissions Policy -->
+  <script>
+    // Interceptar e suprimir avisos de Permissions Policy
+    const originalConsoleWarn = console.warn;
+    console.warn = function(...args) {
+      const message = args.join(' ');
+      if (message.includes('Potential permissions policy violation')) {
+        return; // Suprimir avisos de Permissions Policy
+      }
+      originalConsoleWarn.apply(console, args);
+    };
+  </script>
 
   <!-- Fonte -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
