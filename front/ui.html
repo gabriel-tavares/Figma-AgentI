@@ -9,14 +9,32 @@
   <script>
     // Interceptar e suprimir avisos específicos do Figma
     const originalConsoleWarn = console.warn;
+    const originalConsoleError = console.error;
+    
     console.warn = function(...args) {
       const message = args.join(' ');
       if (message.includes('Potential permissions policy violation') ||
           message.includes('You appear to be logging a relative timestamp') ||
-          message.includes('Try adding performance.timeOrigin')) {
+          message.includes('Try adding performance.timeOrigin') ||
+          message.includes('camera is not allowed') ||
+          message.includes('microphone is not allowed') ||
+          message.includes('clipboard-write is not allowed') ||
+          message.includes('display-capture is not allowed')) {
         return; // Suprimir avisos específicos do Figma
       }
       originalConsoleWarn.apply(console, args);
+    };
+    
+    console.error = function(...args) {
+      const message = args.join(' ');
+      if (message.includes('Potential permissions policy violation') ||
+          message.includes('camera is not allowed') ||
+          message.includes('microphone is not allowed') ||
+          message.includes('clipboard-write is not allowed') ||
+          message.includes('display-capture is not allowed')) {
+        return; // Suprimir erros específicos do Figma
+      }
+      originalConsoleError.apply(console, args);
     };
   </script>
 
