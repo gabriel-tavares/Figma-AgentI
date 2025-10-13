@@ -1091,6 +1091,8 @@ figma.ui.onmessage = async (msg) => {
             autoLayout.layoutMode = "VERTICAL";
             autoLayout.primaryAxisAlignItems = "MIN";
             autoLayout.counterAxisAlignItems = "MIN";
+            autoLayout.primaryAxisSizingMode = "HUG"; // Hug contents na altura
+            autoLayout.counterAxisSizingMode = "HUG"; // Hug contents na largura
             autoLayout.itemSpacing = 24;
             autoLayout.paddingTop = 16;
             autoLayout.paddingBottom = 16;
@@ -1103,14 +1105,6 @@ figma.ui.onmessage = async (msg) => {
             // Posicionar o Auto Layout ao lado da tela
             autoLayout.x = targetNode.x + targetNode.width + OFFSET_X;
             autoLayout.y = targetNode.y;
-            
-            // Adicionar cabeçalho ao Auto Layout
-            const header = figma.createText();
-            await figma.loadFontAsync({ family: "Inter", style: "Bold" });
-            header.characters = `[AI] ${targetNode.name || 'Layout'}`;
-            header.fontSize = 16;
-            header.fills = [{ type: "SOLID", color: { r: 0.2, g: 0.2, b: 0.2 } }];
-            autoLayout.appendChild(header);
             
             // Adicionar o Auto Layout à página
             figma.currentPage.appendChild(autoLayout);
