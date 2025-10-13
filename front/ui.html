@@ -5,36 +5,98 @@
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()" />
   <title>Agent.I – UI</title>
   
-  <!-- Suprimir TODOS os avisos do console do Figma -->
+  <!-- Suprimir TODOS os avisos do console do Figma - SOLUÇÃO DEFINITIVA -->
   <script>
-    // Interceptar e suprimir TODOS os avisos do Figma
-    const originalConsoleWarn = console.warn;
-    const originalConsoleError = console.error;
-    const originalConsoleLog = console.log;
-    
-    // Suprimir TODOS os avisos
-    console.warn = function(...args) {
-      return; // Suprimir todos os avisos
-    };
-    
-    // Suprimir TODOS os erros
-    console.error = function(...args) {
-      return; // Suprimir todos os erros
-    };
-    
-    // Manter apenas logs importantes
-    console.log = function(...args) {
-      const message = args.join(' ');
-      // Manter apenas logs do nosso plugin
-      if (message.includes('[DEBUG]') || 
-          message.includes('Agent.I') || 
-          message.includes('Figma-AgentI') ||
-          message.includes('✅') ||
-          message.includes('❌')) {
-        originalConsoleLog.apply(console, args);
+    // SOLUÇÃO DEFINITIVA: Interceptar TODOS os métodos do console
+    (function() {
+      // Salvar referências originais
+      const originalConsole = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+        info: console.info,
+        debug: console.debug,
+        trace: console.trace,
+        table: console.table,
+        group: console.group,
+        groupEnd: console.groupEnd,
+        time: console.time,
+        timeEnd: console.timeEnd,
+        clear: console.clear
+      };
+      
+      // Função para verificar se é log do nosso plugin
+      function isOurLog(message) {
+        return message.includes('[DEBUG]') || 
+               message.includes('Agent.I') || 
+               message.includes('Figma-AgentI') ||
+               message.includes('✅') ||
+               message.includes('❌') ||
+               message.includes('Plugin') ||
+               message.includes('UX');
       }
-      // Suprimir todos os outros logs
-    };
+      
+      // Sobrescrever TODOS os métodos do console
+      console.log = function(...args) {
+        const message = args.join(' ');
+        if (isOurLog(message)) {
+          originalConsole.log.apply(console, args);
+        }
+      };
+      
+      console.warn = function(...args) {
+        return; // Suprimir TODOS os avisos
+      };
+      
+      console.error = function(...args) {
+        return; // Suprimir TODOS os erros
+      };
+      
+      console.info = function(...args) {
+        return; // Suprimir TODAS as informações
+      };
+      
+      console.debug = function(...args) {
+        return; // Suprimir TODOS os debugs
+      };
+      
+      console.trace = function(...args) {
+        return; // Suprimir TODOS os traces
+      };
+      
+      console.table = function(...args) {
+        return; // Suprimir TODAS as tabelas
+      };
+      
+      console.group = function(...args) {
+        return; // Suprimir TODOS os grupos
+      };
+      
+      console.groupEnd = function(...args) {
+        return; // Suprimir TODOS os grupos
+      };
+      
+      console.time = function(...args) {
+        return; // Suprimir TODOS os timers
+      };
+      
+      console.timeEnd = function(...args) {
+        return; // Suprimir TODOS os timers
+      };
+      
+      // Limpar console periodicamente
+      setInterval(function() {
+        if (typeof originalConsole.clear === 'function') {
+          originalConsole.clear();
+        }
+      }, 1000);
+      
+      // Interceptar também o objeto window.console
+      if (window.console) {
+        Object.assign(window.console, console);
+      }
+      
+    })();
   </script>
 
   <!-- Fonte -->
