@@ -1071,117 +1071,145 @@ figma.ui.onmessage = async (msg) => {
             console.warn("Inter SemiBold não disponível, usando Bold como fallback:", e);
         }
         const layoutsPayload = [];
-        const node = orderedSelection[0]; // Usar o primeiro frame selecionado para todos os cards
-        const OFFSET_X = 80; // declara fora do loop
-        let currentY = node.y; // Posição Y base para o primeiro card
-        // Processar todos os blocos como partes individuais
-        const todasPartes = [];
-        for (let i = 0; i < blocos.length; i++) {
-            const blocoOriginal = blocos[i] || "";
-            // Suporte a múltiplas heurísticas no mesmo bloco, separadas por [[[FIM_HEURISTICA]]]
-            const partes = blocoOriginal.split("[[[FIM_HEURISTICA]]]").map((p) => p.trim()).filter((p) => p.length > 0);
-            // Fallback para marcador antigo [[FIM_HEURISTICA]]
-            if (partes.length === 0 && blocoOriginal.includes("[[FIM_HEURISTICA]]")) {
-                partes.push(blocoOriginal.split("[[FIM_HEURISTICA]]")[0].trim());
+        // Dividir blocos entre os layouts selecionados
+        const blocosPerLayout = Math.ceil(blocos.length / orderedSelection.length);
+        // Processar cada layout com sua porção de blocos
+        for (let layoutIdx = 0; layoutIdx < orderedSelection.length; layoutIdx++) {
+            const node = orderedSelection[layoutIdx];
+            const OFFSET_X = 80;
+            let currentY = node.y;
+            // Pegar apenas a porção de blocos para este layout
+            const startIdx = layoutIdx * blocosPerLayout;
+            const endIdx = Math.min(startIdx + blocosPerLayout, blocos.length);
+            const blocosDesteLayout = blocos.slice(startIdx, endIdx);
+            // Criar Auto Layout para este layout
+            const autoLayout = figma.createFrame();
+            autoLayout.name = `[AI] ${node.name || 'Layout'}`;
+            autoLayout.layoutMode = "VERTICAL";
+            autoLayout.primaryAxisSizingMode = "AUTO";
+            autoLayout.counterAxisSizingMode = "AUTO";
+            autoLayout.primaryAxisAlignItems = "MIN";
+            autoLayout.counterAxisAlignItems = "MIN";
+            autoLayout.itemSpacing = 24;
+            autoLayout.paddingLeft = 0;
+            autoLayout.paddingRight = 0;
+            autoLayout.paddingTop = 0;
+            autoLayout.paddingBottom = 0;
+            autoLayout.fills = [];
+            autoLayout.cornerRadius = 0;
+            autoLayout.strokes = [];
+            autoLayout.x = node.x + node.width + OFFSET_X;
+            autoLayout.y = node.y;
+            figma.currentPage.appendChild(autoLayout);
+            let cardsPayload = [];
+            // Processar blocos deste layout como partes individuais
+            const todasPartes = [];
+            for (let i = 0; i < blocosDesteLayout.length; i++) {
+                const blocoOriginal = blocosDesteLayout[i] || "";
+                // Suporte a múltiplas heurísticas no mesmo bloco, separadas por [[[FIM_HEURISTICA]]]
+                const partes = blocoOriginal.split("[[[FIM_HEURISTICA]]]").map((p) => p.trim()).filter((p) => p.length > 0);
+                // Fallback para marcador antigo [[FIM_HEURISTICA]]
+                if (partes.length === 0 && blocoOriginal.includes("[[FIM_HEURISTICA]]")) {
+                    partes.push(blocoOriginal.split("[[FIM_HEURISTICA]]")[0].trim());
+                }
+                todasPartes.push(...partes);
             }
-            todasPartes.push(...partes);
-        }
-        // === PRIORIZAÇÃO: problemas primeiro, positivos por último ===
-        const MAX_POSITIVE_CARDS = 1; // 0 = ocultar positivos; 1 = mostrar apenas 1; ajuste como quiser.
-        function extrairSeveridade(p) {
-            const m = p.match(/\n?\s*7\s*[-–—]?\s*(?:Severidade\s*:)?\s*([^\n]+)/i);
-            return m ? m[1].trim().toLowerCase() : "";
-        }
-        function rankSeveridade(s) {
-            const t = (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-            if (/alto|alta|critica|crítica|critico|crítico/.test(t))
-                return 0; // mais crítico primeiro
-            if (/medio|médio|moderad[oa]|media|média/.test(t))
-                return 1;
-            if (/baixo|baixa|leve/.test(t))
-                return 2;
-            if (/positiv/.test(t))
-                return 3; // positivos por último
-            return 2; // default ~ baixo
-        }
-        const partesNegativas = todasPartes
-            .filter(p => !/positiv/i.test(extrairSeveridade(p)))
-            .sort((a, b) => rankSeveridade(extrairSeveridade(a)) - rankSeveridade(extrairSeveridade(b)));
-        const partesPositivas = todasPartes
-            .filter(p => /positiv/i.test(extrairSeveridade(p)))
-            .slice(0, MAX_POSITIVE_CARDS);
-        const partesOrdenadas = [...partesNegativas, ...partesPositivas];
-        const cardsPayload = [];
-        try {
-            for (const parte of partesOrdenadas) {
-                // Quebra o bloco em linhas e remove espaços
-                let parteSan = parte;
-                const linhas = parteSan
-                    .split("\n")
-                    .map((l) => l.trim())
-                    .filter(Boolean);
-                // pegar(n): devolve o conteúdo entre o marcador n e o próximo marcador (n+1..8)
-                // [PARSER] pegar(n): retorna o conteúdo do item numerado n (1–8), respeitando o próximo marcador.
-                function pegar(n) {
-                    const idx = linhas.findIndex((l) => new RegExp("^" + n + "\\s*[-–—]\\s*").test(l));
-                    if (idx === -1)
-                        return "";
-                    const end = linhas.findIndex((l, index) => index > idx && /^[1-8]\s*[-–—]\s*/.test(l));
-                    const slice = linhas.slice(idx, end === -1 ? undefined : end);
-                    if (slice.length > 0) {
-                        slice[0] = slice[0].replace(/^[1-8]\s*[-–—]\s*/, "").trim();
+            // === PRIORIZAÇÃO: problemas primeiro, positivos por último ===
+            const MAX_POSITIVE_CARDS = 1; // 0 = ocultar positivos; 1 = mostrar apenas 1; ajuste como quiser.
+            function extrairSeveridade(p) {
+                const m = p.match(/\n?\s*7\s*[-–—]?\s*(?:Severidade\s*:)?\s*([^\n]+)/i);
+                return m ? m[1].trim().toLowerCase() : "";
+            }
+            function rankSeveridade(s) {
+                const t = (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                if (/alto|alta|critica|crítica|critico|crítico/.test(t))
+                    return 0; // mais crítico primeiro
+                if (/medio|médio|moderad[oa]|media|média/.test(t))
+                    return 1;
+                if (/baixo|baixa|leve/.test(t))
+                    return 2;
+                if (/positiv/.test(t))
+                    return 3; // positivos por último
+                return 2; // default ~ baixo
+            }
+            const partesNegativas = todasPartes
+                .filter(p => !/positiv/i.test(extrairSeveridade(p)))
+                .sort((a, b) => rankSeveridade(extrairSeveridade(a)) - rankSeveridade(extrairSeveridade(b)));
+            const partesPositivas = todasPartes
+                .filter(p => /positiv/i.test(extrairSeveridade(p)))
+                .slice(0, MAX_POSITIVE_CARDS);
+            const partesOrdenadas = [...partesNegativas, ...partesPositivas];
+            const cardsPayload = [];
+            try {
+                for (const parte of partesOrdenadas) {
+                    // Quebra o bloco em linhas e remove espaços
+                    let parteSan = parte;
+                    const linhas = parteSan
+                        .split("\n")
+                        .map((l) => l.trim())
+                        .filter(Boolean);
+                    // pegar(n): devolve o conteúdo entre o marcador n e o próximo marcador (n+1..8)
+                    // [PARSER] pegar(n): retorna o conteúdo do item numerado n (1–8), respeitando o próximo marcador.
+                    function pegar(n) {
+                        const idx = linhas.findIndex((l) => new RegExp("^" + n + "\\s*[-–—]\\s*").test(l));
+                        if (idx === -1)
+                            return "";
+                        const end = linhas.findIndex((l, index) => index > idx && /^[1-8]\s*[-–—]\s*/.test(l));
+                        const slice = linhas.slice(idx, end === -1 ? undefined : end);
+                        if (slice.length > 0) {
+                            slice[0] = slice[0].replace(/^[1-8]\s*[-–—]\s*/, "").trim();
+                        }
+                        return slice.join(" ").trim();
                     }
-                    return slice.join(" ").trim();
-                }
-                // Extrai campos 1–8 do bloco
-                const prefixo = (pegar(1) || "").trim();
-                const titulo = ((pegar(2) || "Sem título").trim());
-                const metodo = pegar(3);
-                const descricaoProb = pegar(4);
-                const sugestao = pegar(5);
-                const justificativa = pegar(6);
-                const referencias = pegar(8);
-                // [SEVERIDADE] severidadeRaw: lê o item 7 com ou sem rótulo 'Severidade:'.
-                const severidadeRaw = (pegar(7) || "").trim();
-                const norm = (s) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-                // [SEVERIDADE] getSeverityMeta: mapeia texto normalizado -> cores/labels/gauge.
-                function getSeverityMeta(raw) {
-                    const s = norm(raw);
-                    if (/positiv/.test(s))
-                        return { key: "positivo", label: "Positiva", color: SEVERITY_COLORS.positivo, gauge: gaugePositivo };
-                    if (/(alto|alta|critica|critico|crítica|crítico)/.test(s))
-                        return { key: "alto", label: "Alto", color: SEVERITY_COLORS.alto, gauge: gaugeAlto };
-                    if (/(medio|médio|moderad[oa]|media|média)/.test(s))
+                    // Extrai campos 1–8 do bloco
+                    const prefixo = (pegar(1) || "").trim();
+                    const titulo = ((pegar(2) || "Sem título").trim());
+                    const metodo = pegar(3);
+                    const descricaoProb = pegar(4);
+                    const sugestao = pegar(5);
+                    const justificativa = pegar(6);
+                    const referencias = pegar(8);
+                    // [SEVERIDADE] severidadeRaw: lê o item 7 com ou sem rótulo 'Severidade:'.
+                    const severidadeRaw = (pegar(7) || "").trim();
+                    const norm = (s) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                    // [SEVERIDADE] getSeverityMeta: mapeia texto normalizado -> cores/labels/gauge.
+                    function getSeverityMeta(raw) {
+                        const s = norm(raw);
+                        if (/positiv/.test(s))
+                            return { key: "positivo", label: "Positiva", color: SEVERITY_COLORS.positivo, gauge: gaugePositivo };
+                        if (/(alto|alta|critica|critico|crítica|crítico)/.test(s))
+                            return { key: "alto", label: "Alto", color: SEVERITY_COLORS.alto, gauge: gaugeAlto };
+                        if (/(medio|médio|moderad[oa]|media|média)/.test(s))
+                            return { key: "medio", label: "Médio", color: SEVERITY_COLORS.medio, gauge: gaugeMedio };
+                        if (/(baixo|baixa|leve)/.test(s))
+                            return { key: "baixo", label: "Baixo", color: SEVERITY_COLORS.baixo, gauge: gaugeBaixo };
                         return { key: "medio", label: "Médio", color: SEVERITY_COLORS.medio, gauge: gaugeMedio };
-                    if (/(baixo|baixa|leve)/.test(s))
-                        return { key: "baixo", label: "Baixo", color: SEVERITY_COLORS.baixo, gauge: gaugeBaixo };
-                    return { key: "medio", label: "Médio", color: SEVERITY_COLORS.medio, gauge: gaugeMedio };
-                }
-                function toSevKey(raw) {
-                    const s = (raw || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-                    if (/\bpositiv/.test(s))
-                        return "positivo";
-                    if (/\b(alt[ao]|critic[oa])\b/.test(s))
-                        return "alto";
-                    if (/\b(medi[oa]|moderad[oa])\b/.test(s))
-                        return "medio";
-                    if (/\b(baix[oa]|lev[ea])\b/.test(s))
-                        return "baixo";
-                    return "medio"; // <- fallback seguro
-                }
-                const isPositiva = (severidadeRaw || "").includes("positivo");
-                const sevMeta = getSeverityMeta(severidadeRaw);
-                const sevKey = toSevKey(severidadeRaw);
-                // (adiado) cardsPayload.push — só após o card ser criado e inserido
-                const palette = {
-                    border: { r: 0.88, g: 0.9, b: 0.93 },
-                    text: { r: 0.13, g: 0.13, b: 0.13 },
-                    subtle: { r: 0.42, g: 0.45, b: 0.5 },
-                    divider: { r: 0.75, g: 0.77, b: 0.8 },
-                    white: { r: 1, g: 1, b: 1 }
-                };
-                // SVG do gauge (cole exatamente como recebeu)
-                const gaugeSvg = `
+                    }
+                    function toSevKey(raw) {
+                        const s = (raw || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+                        if (/\bpositiv/.test(s))
+                            return "positivo";
+                        if (/\b(alt[ao]|critic[oa])\b/.test(s))
+                            return "alto";
+                        if (/\b(medi[oa]|moderad[oa])\b/.test(s))
+                            return "medio";
+                        if (/\b(baix[oa]|lev[ea])\b/.test(s))
+                            return "baixo";
+                        return "medio"; // <- fallback seguro
+                    }
+                    const isPositiva = (severidadeRaw || "").includes("positivo");
+                    const sevMeta = getSeverityMeta(severidadeRaw);
+                    const sevKey = toSevKey(severidadeRaw);
+                    // (adiado) cardsPayload.push — só após o card ser criado e inserido
+                    const palette = {
+                        border: { r: 0.88, g: 0.9, b: 0.93 },
+                        text: { r: 0.13, g: 0.13, b: 0.13 },
+                        subtle: { r: 0.42, g: 0.45, b: 0.5 },
+                        divider: { r: 0.75, g: 0.77, b: 0.8 },
+                        white: { r: 1, g: 1, b: 1 }
+                    };
+                    // SVG do gauge (cole exatamente como recebeu)
+                    const gaugeSvg = `
       <svg width="240" height="122" viewBox="0 0 240 122" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M120 9.5C133.198 9.5 146.267 12.0998 158.46 17.1504C170.653 22.201 181.732 29.6033 191.064 38.9355C200.397 48.2677 207.799 59.3469 212.85 71.54C217.644 83.1139 220.229 95.477 220.479 107.99C220.507 109.381 219.378 110.5 218 110.5H192C190.616 110.5 189.511 109.38 189.472 108.015C189.23 99.5647 187.449 91.2235 184.21 83.4033C180.717 74.9712 175.597 67.3101 169.144 60.8564C162.69 54.4028 155.029 49.2827 146.597 45.79C138.165 42.2973 129.127 40.5 120 40.5C110.873 40.5 101.835 42.2973 93.4033 45.79C84.9712 49.2827 77.3101 54.4028 70.8564 60.8564C64.4028 67.3101 59.2827 74.9712 55.79 83.4033C52.5508 91.2235 50.7698 99.5647 50.5283 108.015C50.4892 109.38 49.3842 110.5 48 110.5H22C20.622 110.5 19.4928 109.381 19.5205 107.99C19.7708 95.477 22.3563 83.1139 27.1504 71.54C32.201 59.347 39.6033 48.2677 48.9355 38.9355C58.2677 29.6033 69.3469 22.201 81.54 17.1504C93.7333 12.0998 106.802 9.5 120 9.5Z" fill="#FECA2A" fill-opacity="0.4" stroke="#DDAF24"/>
       <path d="M23 110C21.3431 110 19.9953 108.656 20.045 107C20.5403 90.4933 25.1172 74.3487 33.387 60.0181C42.1571 44.8205 54.7716 32.198 69.9637 23.4184C85.1558 14.6388 102.391 10.011 119.937 10C136.483 9.98963 152.756 14.0845 167.306 21.8969C168.766 22.6807 169.257 24.5194 168.43 25.955L156.447 46.7496C155.62 48.1852 153.788 48.6721 152.318 47.9072C142.338 42.7123 131.237 39.9929 119.956 40C107.673 40.0077 95.6091 43.2471 84.9746 49.3929C74.3402 55.5386 65.51 64.3744 59.3709 75.0127C53.7323 84.7837 50.5463 95.7593 50.0643 107.001C49.9933 108.656 48.6569 110 47 110H23Z" fill="#FECA2A"/>
@@ -1189,279 +1217,273 @@ figma.ui.onmessage = async (msg) => {
       <path d="M114.861 108.196C119.235 111 125.018 109.781 127.78 105.474C130.541 101.166 129.234 95.4017 124.861 92.598C120.487 89.7944 114.704 91.0134 111.942 95.3208C109.181 99.6282 110.488 105.393 114.861 108.196Z" fill="#5C5C5C"/>
       <path fill-rule="evenodd" clip-rule="evenodd" d="M136.765 88.3938L137.302 73.1906L123.712 80.0261C115.538 78.3951 106.891 81.7176 102.182 89.0638C96.0171 98.6803 98.9347 111.55 108.699 117.809C118.463 124.069 131.375 121.347 137.54 111.731C142.25 104.385 141.659 95.1398 136.765 88.3938ZM111.14 114.001C118.769 118.891 128.857 116.764 133.673 109.252C138.489 101.739 136.21 91.684 128.582 86.7939C120.954 81.9039 110.865 84.0301 106.049 91.543C101.233 99.0559 103.512 109.11 111.14 114.001Z" fill="#5C5C5C"/>
       </svg>`;
-                const gaugeSvgToUse = (sevMeta.gauge && sevMeta.gauge.trim()) ? sevMeta.gauge : gaugeSvg;
-                // Cria o node e redimensiona
-                const gaugeNode = figma.createNodeFromSvg(gaugeSvgToUse);
-                gaugeNode.resize(68, 34);
-                const sevMap = {
-                    "crítica": { barraLateral: { r: 0.97, g: 0.42, b: 0.36 }, chip: { r: 0.94, g: 0.29, b: 0.23 }, label: "Crítica" },
-                    "critica": { barraLateral: { r: 0.97, g: 0.42, b: 0.36 }, chip: { r: 0.94, g: 0.29, b: 0.23 }, label: "Crítica" },
-                    "moderada": { barraLateral: { r: 1.0, g: 0.84, b: 0.2 }, chip: { r: 1.0, g: 0.8, b: 0.16 }, label: "Moderada" },
-                    "leve": { barraLateral: { r: 0.22, g: 0.78, b: 0.42 }, chip: { r: 0.16, g: 0.69, b: 0.36 }, label: "Leve" },
-                    "positivo": { barraLateral: { r: 0.16, g: 0.53, b: 0.84 }, chip: { r: 0.16, g: 0.53, b: 0.84 }, label: "Positivo" }
-                };
-                const sevColorObj = hexToPaint(sevMeta.color)[0].color;
-                const sev = { barraLateral: sevColorObj, chip: sevColorObj, label: sevMeta.label };
-                function makeText(text, style, size, color) {
-                    const t = figma.createText();
-                    t.fontName = { family: "Inter", style };
-                    t.fontSize = size;
-                    t.characters = removePrefix(text);
-                    t.fills = [{ type: "SOLID", color }];
-                    t.textAutoResize = "WIDTH_AND_HEIGHT";
-                    return t;
-                }
-                // [HELPER] makeSection: cria um bloco (label + valor) com espaçamento e estilos.
-                function makeSection(label, value, italic) {
-                    if (!value)
-                        return null;
-                    const wrap = figma.createFrame();
-                    wrap.layoutMode = "VERTICAL";
-                    wrap.primaryAxisSizingMode = "AUTO";
-                    wrap.counterAxisSizingMode = "AUTO";
-                    wrap.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-                    wrap.resize(516, wrap.height);
-                    wrap.itemSpacing = 6;
-                    wrap.fills = [];
-                    //wrap.strokes = [{ type: "SOLID", color: { r: 0, g: 0, b: 1 } }]; // borda azul
-                    wrap.strokeWeight = 1;
-                    const l = makeText(label, "Bold", 16, palette.text);
-                    const v = makeText(value, italic ? "Italic" : "Regular", 16, palette.text);
-                    //Configura quebra de linha automática no valor
-                    v.textAutoResize = "HEIGHT"; // altura se ajusta ao conteúdo
-                    v.resize(516, v.height); // largura máxima para quebrar linha
-                    wrap.appendChild(l);
-                    wrap.appendChild(v);
-                    return wrap;
-                }
-                // Cria o card principal com layout vertical, largura fixa e altura adaptável
-                // [CARD] Cria o card principal (layout horizontal: barra lateral + coluna de conteúdo).
-                const card = figma.createFrame();
-                //card.name = "Heurística – " + titulo;
-                card.name = `[AI] ${titulo} :: ${severidadeRaw}`;
-                card.layoutMode = "HORIZONTAL";
-                card.primaryAxisSizingMode = "FIXED";
-                card.counterAxisSizingMode = "AUTO";
-                card.resize(590, card.height);
-                card.itemSpacing = 0;
-                card.paddingLeft = 24;
-                card.paddingRight = 24;
-                card.paddingTop = 24;
-                card.paddingBottom = 24;
-                card.cornerRadius = 20;
-                card.strokes = [{ type: "SOLID", color: palette.border, opacity: 1 }];
-                card.strokeWeight = 1;
-                card.fills = [{ type: "SOLID", color: palette.white }];
-                //card.effects = [{
-                //  type: "DROP_SHADOW",
-                //  radius: 12,
-                //  color: { r: 0, g: 0, b: 0, a: 0.08 },
-                //  offset: { x: 0, y: 4 },
-                //  visible: true,
-                //  blendMode: "NORMAL"
-                //}];
-                const barraLateral = figma.createFrame();
-                barraLateral.layoutMode = "VERTICAL";
-                barraLateral.cornerRadius = 20;
-                barraLateral.primaryAxisSizingMode = "AUTO";
-                barraLateral.counterAxisSizingMode = "FIXED";
-                barraLateral.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-                barraLateral.resize(8, 1);
-                barraLateral.fills = [{ type: "SOLID", color: sev.barraLateral }];
-                // Cria o container vertical para os textos do card (título, problema, sugestão, etc.)
-                const contentCol = figma.createFrame();
-                contentCol.layoutMode = "VERTICAL";
-                contentCol.primaryAxisSizingMode = "AUTO";
-                contentCol.counterAxisSizingMode = "AUTO";
-                contentCol.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-                contentCol.itemSpacing = 16;
-                contentCol.paddingLeft = 18;
-                contentCol.paddingRight = 0;
-                contentCol.paddingTop = 0;
-                contentCol.paddingBottom = 0;
-                contentCol.layoutGrow = 1; // <- ESSENCIAL
-                contentCol.fills = [];
-                const headerRow = figma.createFrame();
-                headerRow.layoutMode = "HORIZONTAL";
-                headerRow.primaryAxisSizingMode = "AUTO"; // Permite expansão automática
-                headerRow.counterAxisSizingMode = "AUTO"; // altura = maior filho (71px do right)
-                headerRow.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-                headerRow.itemSpacing = 16;
-                headerRow.fills = [];
-                // headerRow.resize(510, card.height); // Remover resize fixo
-                const headerLeft = figma.createFrame();
-                headerLeft.layoutMode = "VERTICAL";
-                headerLeft.primaryAxisSizingMode = "AUTO"; // Permite expansão automática
-                headerLeft.counterAxisSizingMode = "AUTO";
-                headerLeft.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-                headerLeft.itemSpacing = 8;
-                headerLeft.fills = [];
-                // headerLeft.resize(410, card.height); // Remover resize fixo
-                // 1ª linha: Prefixo (ex.: [Hipótese]) – só exibir tag roxa para hipótese
-                if (prefixo && prefixo.trim() && prefixo.toLowerCase().includes('hipótese')) {
-                    // Criar container horizontal para tag roxa
-                    const tagContainer = figma.createFrame();
-                    tagContainer.layoutMode = "HORIZONTAL";
-                    tagContainer.primaryAxisSizingMode = "AUTO";
-                    tagContainer.counterAxisSizingMode = "AUTO";
-                    tagContainer.itemSpacing = 0;
-                    tagContainer.fills = [];
-                    // Criar tag roxa para "Hipótese"
-                    const tagBadge = figma.createFrame();
-                    tagBadge.layoutMode = "HORIZONTAL";
-                    tagBadge.primaryAxisSizingMode = "AUTO";
-                    tagBadge.counterAxisSizingMode = "AUTO";
-                    tagBadge.paddingLeft = 8;
-                    tagBadge.paddingRight = 8;
-                    tagBadge.paddingTop = 4;
-                    tagBadge.paddingBottom = 4;
-                    tagBadge.cornerRadius = 6;
-                    tagBadge.fills = [{ type: "SOLID", color: { r: 0.58, g: 0.35, b: 0.85 } }]; // Roxo
-                    const tagText = figma.createText();
-                    tagText.characters = "Hipótese";
-                    tagText.fontName = { family: "Inter", style: "Bold" };
-                    tagText.fontSize = 12;
-                    tagText.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }]; // Texto branco
-                    tagText.textAutoResize = "WIDTH_AND_HEIGHT";
-                    tagBadge.appendChild(tagText);
-                    tagContainer.appendChild(tagBadge);
-                    headerLeft.appendChild(tagContainer);
-                }
-                // 2ª linha: Título (campo 2) – sem prefixo
-                const titleT = makeText(titulo, "Bold", 20, palette.text);
-                titleT.textAutoResize = "HEIGHT";
-                titleT.resize(410, titleT.height);
-                const divider = figma.createRectangle();
-                divider.strokes = [];
-                divider.fills = [{ type: "SOLID", color: palette.divider }];
-                divider.layoutAlign = "STRETCH";
-                divider.resize(1, 1);
-                const metodoDisplayNames = {
-                    nielsen: "Heurísticas de Nielsen",
-                    heuristicas_nielsen: "Heurísticas de Nielsen",
-                    shneiderman: "Regras de Ouro (Shneiderman)",
-                    regras_ouro: "Regras de Ouro (Shneiderman)",
-                    powals: "Usabilidade Cognitiva de Gerhardt-Powals",
-                    gerhardt_powals: "Usabilidade Cognitiva de Gerhardt-Powals",
-                    vieses: "Vieses Cognitivos",
-                    vieses_cognitivos: "Vieses Cognitivos",
-                };
-                // supondo que você tem a variável `metodo` disponível neste escopo.
-                // se o nome estiver diferente (ex.: metodoAtual/metodoGlobal), use-o aqui.
-                const metodoNome = metodoDisplayNames[String(metodo || "").toLowerCase()] || String(metodo || "Heurísticas");
-                // cor correta é `subtle` (não existe `subtitle` no palette)
-                const subtitleT = makeText(metodoNome, "Regular", 16, palette.subtle);
-                subtitleT.textAutoResize = "HEIGHT"; // Só altura, largura fixa
-                subtitleT.resize(410, subtitleT.height); // Definir largura máxima
-                // append no node certo
-                const isConstatacao = norm(prefixo) === "constatacao";
-                if (!isConstatacao && prefixo) {
-                    const tipoTxt = figma.createText();
-                    tipoTxt.characters = prefixo;
-                    tipoTxt.fontSize = 16;
-                    tipoTxt.fontName = { family: "Inter", style: "Bold" };
-                    tipoTxt.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
-                    headerLeft.appendChild(tipoTxt);
-                }
-                headerLeft.appendChild(titleT);
-                headerLeft.appendChild(divider);
-                headerLeft.appendChild(subtitleT);
-                const headerRight = figma.createFrame();
-                headerRight.layoutMode = "VERTICAL";
-                headerRight.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-                headerRight.primaryAxisSizingMode = "FIXED";
-                headerRight.counterAxisSizingMode = "FIXED";
-                headerRight.resize(84, 71);
-                headerRight.itemSpacing = 16;
-                headerRight.primaryAxisAlignItems = "CENTER"; // alinha no eixo principal (vertical)
-                headerRight.counterAxisAlignItems = "CENTER"; // alinha no eixo cruzado (horizontal)
-                headerRight.paddingTop = headerRight.paddingBottom = 0;
-                headerRight.paddingLeft = headerRight.paddingRight = 0;
-                headerRight.fills = [];
-                // Adiciona no headerRight
-                headerRight.appendChild(gaugeNode);
-                // Criaçao da TAG de severidade
-                const chip = figma.createFrame();
-                chip.layoutMode = "HORIZONTAL";
-                chip.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
-                chip.primaryAxisSizingMode = "AUTO";
-                chip.counterAxisSizingMode = "AUTO";
-                chip.paddingLeft = 12;
-                chip.paddingRight = 12;
-                chip.paddingTop = 6;
-                chip.paddingBottom = 6;
-                chip.cornerRadius = 999;
-                chip.fills = [{ type: "SOLID", color: sev.chip }];
-                const chipText = makeText(sev.label, "Bold", 12, palette.white);
-                chip.appendChild(chipText);
-                headerRight.appendChild(chip);
-                headerRow.appendChild(headerLeft);
-                headerRow.appendChild(headerRight);
-                contentCol.appendChild(headerRow);
-                function stripMarkerSpill(s) {
-                    if (!s)
-                        return s;
-                    s = s;
-                    s = s.replace(/\b8\s*[-–—]?\s*Refer(ê|e)ncias?\s*:\s*/gi, "");
-                    return s.trim();
-                }
-                // Limpezas básicas dos campos
-                let justRaw = removePrefix(justificativa || "");
-                let refsRaw = removePrefix(referencias || "");
-                // Remover qualquer sobra explícita de “7 - …” / “8 - …”
-                justRaw = stripMarkerSpill(justRaw);
-                refsRaw = stripMarkerSpill(refsRaw);
-                // 4 - Descrição
-                const secDescricao = makeSection("Descrição", removePrefix(descricaoProb));
-                if (secDescricao)
-                    contentCol.appendChild(secDescricao);
-                // 5 - Sugestão de melhoria  (só se NÃO for positiva)
-                const textoSugestao = removePrefix(sugestao || "").trim();
-                if (sevKey !== "positivo" && textoSugestao) {
-                    const secSugestao = makeSection("Sugestão de melhoria", textoSugestao);
-                    if (secSugestao)
-                        contentCol.appendChild(secSugestao);
-                }
-                // 6 - Justificativa (texto já limpo e sem refs coladas)
-                const secJust = makeSection("Justificativa", justRaw);
-                if (secJust)
-                    contentCol.appendChild(secJust);
-                // 8 - Referências (sempre seu próprio bloco; true = monoespaçado/multilinha)
-                const secRef = makeSection("Referências", refsRaw, true);
-                if (secRef)
-                    contentCol.appendChild(secRef);
-                card.appendChild(barraLateral);
-                card.appendChild(contentCol);
-                // [POSICIONAMENTO] Posiciona o card ao lado do layout de origem (um card por frame).
-                card.x = node.x + node.width + OFFSET_X;
-                card.y = currentY;
-                // Adiciona o card finalizado à página atual do Figma
-                card.x = node.x + node.width + OFFSET_X;
-                card.y = currentY;
-                figma.currentPage.appendChild(card);
-                // Agora que o card foi realmente criado, refletimos no resumo
-                cardsPayload.push({ analise: parte, severidade: sevMeta.label, sevKey, severidadeRaw, nodeId: node.id });
-                currentY += card.height + 24;
-            } // fim do for (const parte of partesOrdenadas)
-            //barraLateral.resize(8, contentCol.height);
-            // Nome do layout sem optional chaining
-            // Nome do layout formatado para o cabeçalho do container
-            const nodeName = (node && node.name) ? node.name : (`Layout`);
-            // Empilha o resumo desta tela para enviar à UI
-            layoutsPayload.push({ nome: nodeName, cards: cardsPayload });
+                    const gaugeSvgToUse = (sevMeta.gauge && sevMeta.gauge.trim()) ? sevMeta.gauge : gaugeSvg;
+                    // Cria o node e redimensiona
+                    const gaugeNode = figma.createNodeFromSvg(gaugeSvgToUse);
+                    gaugeNode.resize(68, 34);
+                    const sevMap = {
+                        "crítica": { barraLateral: { r: 0.97, g: 0.42, b: 0.36 }, chip: { r: 0.94, g: 0.29, b: 0.23 }, label: "Crítica" },
+                        "critica": { barraLateral: { r: 0.97, g: 0.42, b: 0.36 }, chip: { r: 0.94, g: 0.29, b: 0.23 }, label: "Crítica" },
+                        "moderada": { barraLateral: { r: 1.0, g: 0.84, b: 0.2 }, chip: { r: 1.0, g: 0.8, b: 0.16 }, label: "Moderada" },
+                        "leve": { barraLateral: { r: 0.22, g: 0.78, b: 0.42 }, chip: { r: 0.16, g: 0.69, b: 0.36 }, label: "Leve" },
+                        "positivo": { barraLateral: { r: 0.16, g: 0.53, b: 0.84 }, chip: { r: 0.16, g: 0.53, b: 0.84 }, label: "Positivo" }
+                    };
+                    const sevColorObj = hexToPaint(sevMeta.color)[0].color;
+                    const sev = { barraLateral: sevColorObj, chip: sevColorObj, label: sevMeta.label };
+                    function makeText(text, style, size, color) {
+                        const t = figma.createText();
+                        t.fontName = { family: "Inter", style };
+                        t.fontSize = size;
+                        t.characters = removePrefix(text);
+                        t.fills = [{ type: "SOLID", color }];
+                        t.textAutoResize = "WIDTH_AND_HEIGHT";
+                        return t;
+                    }
+                    // [HELPER] makeSection: cria um bloco (label + valor) com espaçamento e estilos.
+                    function makeSection(label, value, italic) {
+                        if (!value)
+                            return null;
+                        const wrap = figma.createFrame();
+                        wrap.layoutMode = "VERTICAL";
+                        wrap.primaryAxisSizingMode = "AUTO";
+                        wrap.counterAxisSizingMode = "AUTO";
+                        wrap.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+                        wrap.resize(516, wrap.height);
+                        wrap.itemSpacing = 6;
+                        wrap.fills = [];
+                        //wrap.strokes = [{ type: "SOLID", color: { r: 0, g: 0, b: 1 } }]; // borda azul
+                        wrap.strokeWeight = 1;
+                        const l = makeText(label, "Bold", 16, palette.text);
+                        const v = makeText(value, italic ? "Italic" : "Regular", 16, palette.text);
+                        //Configura quebra de linha automática no valor
+                        v.textAutoResize = "HEIGHT"; // altura se ajusta ao conteúdo
+                        v.resize(516, v.height); // largura máxima para quebrar linha
+                        wrap.appendChild(l);
+                        wrap.appendChild(v);
+                        return wrap;
+                    }
+                    // Cria o card principal com layout vertical, largura fixa e altura adaptável
+                    // [CARD] Cria o card principal (layout horizontal: barra lateral + coluna de conteúdo).
+                    const card = figma.createFrame();
+                    //card.name = "Heurística – " + titulo;
+                    card.name = `[AI] ${titulo} :: ${severidadeRaw}`;
+                    card.layoutMode = "HORIZONTAL";
+                    card.primaryAxisSizingMode = "FIXED";
+                    card.counterAxisSizingMode = "AUTO";
+                    card.resize(590, card.height);
+                    card.itemSpacing = 0;
+                    card.paddingLeft = 24;
+                    card.paddingRight = 24;
+                    card.paddingTop = 24;
+                    card.paddingBottom = 24;
+                    card.cornerRadius = 20;
+                    card.strokes = [{ type: "SOLID", color: palette.border, opacity: 1 }];
+                    card.strokeWeight = 1;
+                    card.fills = [{ type: "SOLID", color: palette.white }];
+                    //card.effects = [{
+                    //  type: "DROP_SHADOW",
+                    //  radius: 12,
+                    //  color: { r: 0, g: 0, b: 0, a: 0.08 },
+                    //  offset: { x: 0, y: 4 },
+                    //  visible: true,
+                    //  blendMode: "NORMAL"
+                    //}];
+                    const barraLateral = figma.createFrame();
+                    barraLateral.layoutMode = "VERTICAL";
+                    barraLateral.cornerRadius = 20;
+                    barraLateral.primaryAxisSizingMode = "AUTO";
+                    barraLateral.counterAxisSizingMode = "FIXED";
+                    barraLateral.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+                    barraLateral.resize(8, 1);
+                    barraLateral.fills = [{ type: "SOLID", color: sev.barraLateral }];
+                    // Cria o container vertical para os textos do card (título, problema, sugestão, etc.)
+                    const contentCol = figma.createFrame();
+                    contentCol.layoutMode = "VERTICAL";
+                    contentCol.primaryAxisSizingMode = "AUTO";
+                    contentCol.counterAxisSizingMode = "AUTO";
+                    contentCol.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+                    contentCol.itemSpacing = 16;
+                    contentCol.paddingLeft = 18;
+                    contentCol.paddingRight = 0;
+                    contentCol.paddingTop = 0;
+                    contentCol.paddingBottom = 0;
+                    contentCol.layoutGrow = 1; // <- ESSENCIAL
+                    contentCol.fills = [];
+                    const headerRow = figma.createFrame();
+                    headerRow.layoutMode = "HORIZONTAL";
+                    headerRow.primaryAxisSizingMode = "AUTO"; // Permite expansão automática
+                    headerRow.counterAxisSizingMode = "AUTO"; // altura = maior filho (71px do right)
+                    headerRow.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+                    headerRow.itemSpacing = 16;
+                    headerRow.fills = [];
+                    // headerRow.resize(510, card.height); // Remover resize fixo
+                    const headerLeft = figma.createFrame();
+                    headerLeft.layoutMode = "VERTICAL";
+                    headerLeft.primaryAxisSizingMode = "AUTO"; // Permite expansão automática
+                    headerLeft.counterAxisSizingMode = "AUTO";
+                    headerLeft.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+                    headerLeft.itemSpacing = 8;
+                    headerLeft.fills = [];
+                    // headerLeft.resize(410, card.height); // Remover resize fixo
+                    // 1ª linha: Prefixo (ex.: [Hipótese]) – só exibir tag roxa para hipótese
+                    if (prefixo && prefixo.trim() && prefixo.toLowerCase().includes('hipótese')) {
+                        // Criar container horizontal para tag roxa
+                        const tagContainer = figma.createFrame();
+                        tagContainer.layoutMode = "HORIZONTAL";
+                        tagContainer.primaryAxisSizingMode = "AUTO";
+                        tagContainer.counterAxisSizingMode = "AUTO";
+                        tagContainer.itemSpacing = 0;
+                        tagContainer.fills = [];
+                        // Criar tag roxa para "Hipótese"
+                        const tagBadge = figma.createFrame();
+                        tagBadge.layoutMode = "HORIZONTAL";
+                        tagBadge.primaryAxisSizingMode = "AUTO";
+                        tagBadge.counterAxisSizingMode = "AUTO";
+                        tagBadge.paddingLeft = 8;
+                        tagBadge.paddingRight = 8;
+                        tagBadge.paddingTop = 4;
+                        tagBadge.paddingBottom = 4;
+                        tagBadge.cornerRadius = 6;
+                        tagBadge.fills = [{ type: "SOLID", color: { r: 0.58, g: 0.35, b: 0.85 } }]; // Roxo
+                        const tagText = figma.createText();
+                        tagText.characters = "Hipótese";
+                        tagText.fontName = { family: "Inter", style: "Bold" };
+                        tagText.fontSize = 12;
+                        tagText.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }]; // Texto branco
+                        tagText.textAutoResize = "WIDTH_AND_HEIGHT";
+                        tagBadge.appendChild(tagText);
+                        tagContainer.appendChild(tagBadge);
+                        headerLeft.appendChild(tagContainer);
+                    }
+                    // 2ª linha: Título (campo 2) – sem prefixo
+                    const titleT = makeText(titulo, "Bold", 20, palette.text);
+                    titleT.textAutoResize = "HEIGHT";
+                    titleT.resize(410, titleT.height);
+                    const divider = figma.createRectangle();
+                    divider.strokes = [];
+                    divider.fills = [{ type: "SOLID", color: palette.divider }];
+                    divider.layoutAlign = "STRETCH";
+                    divider.resize(1, 1);
+                    const metodoDisplayNames = {
+                        nielsen: "Heurísticas de Nielsen",
+                        heuristicas_nielsen: "Heurísticas de Nielsen",
+                        shneiderman: "Regras de Ouro (Shneiderman)",
+                        regras_ouro: "Regras de Ouro (Shneiderman)",
+                        powals: "Usabilidade Cognitiva de Gerhardt-Powals",
+                        gerhardt_powals: "Usabilidade Cognitiva de Gerhardt-Powals",
+                        vieses: "Vieses Cognitivos",
+                        vieses_cognitivos: "Vieses Cognitivos",
+                    };
+                    // supondo que você tem a variável `metodo` disponível neste escopo.
+                    // se o nome estiver diferente (ex.: metodoAtual/metodoGlobal), use-o aqui.
+                    const metodoNome = metodoDisplayNames[String(metodo || "").toLowerCase()] || String(metodo || "Heurísticas");
+                    // cor correta é `subtle` (não existe `subtitle` no palette)
+                    const subtitleT = makeText(metodoNome, "Regular", 16, palette.subtle);
+                    subtitleT.textAutoResize = "HEIGHT"; // Só altura, largura fixa
+                    subtitleT.resize(410, subtitleT.height); // Definir largura máxima
+                    // append no node certo
+                    const isConstatacao = norm(prefixo) === "constatacao";
+                    if (!isConstatacao && prefixo) {
+                        const tipoTxt = figma.createText();
+                        tipoTxt.characters = prefixo;
+                        tipoTxt.fontSize = 16;
+                        tipoTxt.fontName = { family: "Inter", style: "Bold" };
+                        tipoTxt.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
+                        headerLeft.appendChild(tipoTxt);
+                    }
+                    headerLeft.appendChild(titleT);
+                    headerLeft.appendChild(divider);
+                    headerLeft.appendChild(subtitleT);
+                    const headerRight = figma.createFrame();
+                    headerRight.layoutMode = "VERTICAL";
+                    headerRight.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+                    headerRight.primaryAxisSizingMode = "FIXED";
+                    headerRight.counterAxisSizingMode = "FIXED";
+                    headerRight.resize(84, 71);
+                    headerRight.itemSpacing = 16;
+                    headerRight.primaryAxisAlignItems = "CENTER"; // alinha no eixo principal (vertical)
+                    headerRight.counterAxisAlignItems = "CENTER"; // alinha no eixo cruzado (horizontal)
+                    headerRight.paddingTop = headerRight.paddingBottom = 0;
+                    headerRight.paddingLeft = headerRight.paddingRight = 0;
+                    headerRight.fills = [];
+                    // Adiciona no headerRight
+                    headerRight.appendChild(gaugeNode);
+                    // Criaçao da TAG de severidade
+                    const chip = figma.createFrame();
+                    chip.layoutMode = "HORIZONTAL";
+                    chip.layoutAlign = "STRETCH"; // ocupa toda a largura ou altura disponível
+                    chip.primaryAxisSizingMode = "AUTO";
+                    chip.counterAxisSizingMode = "AUTO";
+                    chip.paddingLeft = 12;
+                    chip.paddingRight = 12;
+                    chip.paddingTop = 6;
+                    chip.paddingBottom = 6;
+                    chip.cornerRadius = 999;
+                    chip.fills = [{ type: "SOLID", color: sev.chip }];
+                    const chipText = makeText(sev.label, "Bold", 12, palette.white);
+                    chip.appendChild(chipText);
+                    headerRight.appendChild(chip);
+                    headerRow.appendChild(headerLeft);
+                    headerRow.appendChild(headerRight);
+                    contentCol.appendChild(headerRow);
+                    function stripMarkerSpill(s) {
+                        if (!s)
+                            return s;
+                        s = s;
+                        s = s.replace(/\b8\s*[-–—]?\s*Refer(ê|e)ncias?\s*:\s*/gi, "");
+                        return s.trim();
+                    }
+                    // Limpezas básicas dos campos
+                    let justRaw = removePrefix(justificativa || "");
+                    let refsRaw = removePrefix(referencias || "");
+                    // Remover qualquer sobra explícita de “7 - …” / “8 - …”
+                    justRaw = stripMarkerSpill(justRaw);
+                    refsRaw = stripMarkerSpill(refsRaw);
+                    // 4 - Descrição
+                    const secDescricao = makeSection("Descrição", removePrefix(descricaoProb));
+                    if (secDescricao)
+                        contentCol.appendChild(secDescricao);
+                    // 5 - Sugestão de melhoria  (só se NÃO for positiva)
+                    const textoSugestao = removePrefix(sugestao || "").trim();
+                    if (sevKey !== "positivo" && textoSugestao) {
+                        const secSugestao = makeSection("Sugestão de melhoria", textoSugestao);
+                        if (secSugestao)
+                            contentCol.appendChild(secSugestao);
+                    }
+                    // 6 - Justificativa (texto já limpo e sem refs coladas)
+                    const secJust = makeSection("Justificativa", justRaw);
+                    if (secJust)
+                        contentCol.appendChild(secJust);
+                    // 8 - Referências (sempre seu próprio bloco; true = monoespaçado/multilinha)
+                    const secRef = makeSection("Referências", refsRaw, true);
+                    if (secRef)
+                        contentCol.appendChild(secRef);
+                    card.appendChild(barraLateral);
+                    card.appendChild(contentCol);
+                    // Adiciona o card finalizado ao Auto Layout
+                    autoLayout.appendChild(card);
+                    // Agora que o card foi realmente criado, refletimos no resumo
+                    cardsPayload.push({ analise: parte, severidade: sevMeta.label, sevKey, severidadeRaw, nodeId: node.id });
+                } // fim do for (const parte of partesOrdenadas)
+                // Nome do layout sem optional chaining
+                const nodeName = (node && node.name) ? node.name : (`Layout`);
+                // Empilha o resumo desta tela para enviar à UI
+                layoutsPayload.push({ nome: nodeName, cards: cardsPayload });
+            }
+            // Envia resultados para a UI
+            finally {
+            } // fim do for (layoutIdx)
+            // Envia resultados para a UI
+            figma.ui.postMessage({ carregando: false, analises: layoutsPayload });
         }
-        catch (error) {
-            console.error(`[DEBUG] Erro ao processar análise:`, error);
-            // Continua mesmo se houver erro
-            layoutsPayload.push({ nome: `Layout (Erro)`, cards: [] });
+        try { }
+        catch (e) {
+            console.error("❌ [DEBUG] Erro completo na análise:", e);
+            console.error("❌ [DEBUG] Tipo do erro:", typeof e);
+            console.error("❌ [DEBUG] Mensagem do erro:", e && e.message ? e.message : e);
+            figma.ui.postMessage({ carregando: false, resultado: "❌ Erro na análise." });
         }
-        // Envia resultados para a UI
-        figma.ui.postMessage({ carregando: false, analises: layoutsPayload });
     }
-    catch (e) {
-        console.error("❌ [DEBUG] Erro completo na análise:", e);
-        console.error("❌ [DEBUG] Tipo do erro:", typeof e);
-        console.error("❌ [DEBUG] Mensagem do erro:", e && e.message ? e.message : e);
-        figma.ui.postMessage({ carregando: false, resultado: "❌ Erro na análise." });
-    }
+    finally { }
+    ;
 };
