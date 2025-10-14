@@ -1164,7 +1164,7 @@ figma.ui.onmessage = async (msg) => {
                     // Extrai campos 1–8 do bloco
                     const prefixo = (pegar(1) || "").trim();
                     const titulo = ((pegar(2) || "Sem título").trim());
-                    const metodo = pegar(3);
+                    const metodoLocal = pegar(3);
                     const descricaoProb = pegar(4);
                     const sugestao = pegar(5);
                     const justificativa = pegar(6);
@@ -1374,9 +1374,9 @@ figma.ui.onmessage = async (msg) => {
                         vieses: "Vieses Cognitivos",
                         vieses_cognitivos: "Vieses Cognitivos",
                     };
-                    // supondo que você tem a variável `metodo` disponível neste escopo.
+                    // supondo que você tem a variável `metodoLocal` disponível neste escopo.
                     // se o nome estiver diferente (ex.: metodoAtual/metodoGlobal), use-o aqui.
-                    const metodoNome = metodoDisplayNames[String(metodo || "").toLowerCase()] || String(metodo || "Heurísticas");
+                    const metodoNome = metodoDisplayNames[String(metodoLocal || "").toLowerCase()] || String(metodoLocal || "Heurísticas");
                     // cor correta é `subtle` (não existe `subtitle` no palette)
                     const subtitleT = makeText(metodoNome, "Regular", 16, palette.subtle);
                     subtitleT.textAutoResize = "HEIGHT"; // Só altura, largura fixa
