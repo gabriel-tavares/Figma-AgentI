@@ -473,10 +473,12 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       };
       
       if (isGPT5) {
-        // gpt-5-nano específico
-        requestBody.reasoning_effort = "medium";
-        requestBody.verbosity = "medium";
-        requestBody.max_tokens = 20000;
+        // gpt-5-nano específico (GPT-5 real)
+        requestBody.reasoning = { effort: "medium" };
+        requestBody.text = { verbosity: "medium" };
+        requestBody.max_output_tokens = 20000;
+        // Remove temperature (não suportado por GPT-5)
+        delete requestBody.temperature;
       } else if (isO3) {
         // o3-mini específico
         requestBody.reasoning = { effort: "medium" };
