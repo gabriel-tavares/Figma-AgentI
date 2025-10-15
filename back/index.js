@@ -460,8 +460,31 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     
     // MODEL CALL: Chamada para o LLM
     const modelCall = await timeBlock(SPAN_TYPES.MODEL_CALL, async () => {
-      // Verificar se é modelo que usa max_completion_tokens
-      const isNewModel = /^(gpt-5|o3)/i.test(MODELO_AGENTE_A);
+      // Verificar tipo de modelo para usar parâmetros corretos
+      const isGPT5 = /^gpt-5/i.test(MODELO_AGENTE_A);
+      const isO3 = /^o3/i.test(MODELO_AGENTE_A);
+      const isNewModel = isGPT5 || isO3;
+      
+      // Preparar parâmetros baseados no modelo
+      let requestBody = {
+        model: MODELO_AGENTE_A,
+        messages: [{ role: "user", content: prep.result.prompt }],
+        temperature: 0.2
+      };
+      
+      if (isGPT5) {
+        // GPT-5 específico
+        requestBody.reasoning = { effort: "medium" };
+        requestBody.text = { verbosity: "medium" };
+        requestBody.max_output_tokens = 20000;
+      } else if (isO3) {
+        // o3-mini específico
+        requestBody.reasoning = { effort: "medium" };
+        requestBody.max_output_tokens = 20000;
+      } else {
+        // Modelos antigos (gpt-4, etc.)
+        requestBody.max_tokens = 20000;
+      }
       
       // Usar Chat Completions API
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -470,12 +493,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          model: MODELO_AGENTE_A,
-          messages: [{ role: "user", content: prep.result.prompt }],
-          ...(isNewModel ? { max_completion_tokens: 20000 } : { max_tokens: 20000 }),
-          temperature: 0.2
-        })
+        body: JSON.stringify(requestBody)
       });
       
       if (!response.ok) {
