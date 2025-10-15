@@ -29,11 +29,7 @@ const logger = {
 };
 
 
-/**
- * =========================
- *  Dependências & Setup
- * =========================
- */
+
 /** =========================
  * Dependências principais
  * - express: servidor web
@@ -50,9 +46,7 @@ const fs = require("fs");
 const probe = require("probe-image-size"); // npm i probe-image-size
 const { summarizeContextEchoWithAI } = require("./summarize_context_echo");
 const fsp = require('fs/promises');
-const { performance } = require('perf_hooks');
-const sec = (ms) => Number(ms/1000).toFixed(2);
-const crypto = require('crypto');
+const { AgentMetrics } = require('./metrics');
 
 /**
  * =========================
@@ -379,9 +373,15 @@ const MODELO_AGENTE_C = process.env.MODELO_AGENTE_C || "o3-mini";
 
 // Agente A - JSON Analyst
 async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
+  const metrics = new AgentMetrics('Agente A (JSON Analyst)');
+  metrics.start();
+  
+  metrics.startPhase('Carregar Prompt');
   const prompt = loadAgentPrompt('agente-a-json-analyst');
   if (!prompt) return null;
+  metrics.endPhase('Carregar Prompt');
   
+  metrics.startPhase('Processar Dados');
   const instruction = prompt.replaceAll("${metodo}", metodo);
   const figmaData = JSON.stringify(figmaSpec, null, 2);
   
@@ -392,12 +392,21 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
   ].join("\n");
   
   const fullPrompt = [instruction, "", "DADOS:", mensagem].join("\n");
+  metrics.endPhase('Processar Dados');
+  
+  // Calcular tokens de entrada estimados
+  const promptTokens = Math.ceil(fullPrompt.length / 4); // Estimativa aproximada
+  const figmaTokens = Math.ceil(figmaData.length / 4);
+  const instructionTokens = Math.ceil(instruction.length / 4);
   
   try {
+    metrics.startPhase('Verificar Modelo');
     // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
     const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_A);
+    metrics.endPhase('Verificar Modelo');
     
     if (isResponsesModel) {
+      metrics.startPhase('Preparar Request');
       // Usar Responses API para GPT-5, O3, etc.
       const body = {
         model: MODELO_AGENTE_A,
@@ -405,10 +414,12 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         max_output_tokens: 20000,
         ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
       };
+      metrics.endPhase('Preparar Request');
       
       logger.info(`🔄 Agente A: Enviando para Responses API (${MODELO_AGENTE_A})`);
       logger.info(`🔄 Agente A: Prompt ${fullPrompt.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
       
+      metrics.startPhase('Enviar Request');
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST", 
         headers: {
@@ -417,13 +428,17 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         },
         body: JSON.stringify(body)
       });
+      metrics.endPhase('Enviar Request');
       
       logger.info(`🔄 Agente A: Response status: ${response.status}`);
       
+      metrics.startPhase('Processar Response');
       const result = await response.json();
+      metrics.endPhase('Processar Response');
       
       if (!response.ok) {
         logger.error(`🔄 Agente A: API Error: ${JSON.stringify(result)}`);
+        metrics.end();
         return null;
       }
       
@@ -506,8 +521,10 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       }
       
       if (content) {
+        metrics.startPhase('Processar Conteúdo');
         const cleanContent = stripCodeFence(content);
         const parsedResult = JSON.parse(cleanContent);
+        metrics.endPhase('Processar Conteúdo');
         
         // Extrair tokens da resposta (Responses API)
         // Debug: mostrar estrutura de usage
@@ -515,12 +532,30 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
           input: result.usage?.prompt_tokens || result.usage?.input_tokens || 0,
           output: result.usage?.completion_tokens || result.usage?.output_tokens || 0
         };
+        
+        // Definir breakdown detalhado de tokens
+        const tokenBreakdown = {
+          'Prompt Base': instructionTokens,
+          'Dados Figma': figmaTokens,
+          'RAG Context': useRag ? (result.usage?.input_tokens_details?.cached_tokens || 0) : 0,
+          'Total Entrada': tokens.input,
+          'Saída': tokens.output
+        };
+        
+        metrics.setTokens(tokens.input, tokens.output, tokenBreakdown);
         logger.info(`🔄 Agente A: Tokens extraídos: input=${tokens.input}, output=${tokens.output}`);
         
-        return { data: parsedResult, tokens };
+        metrics.end();
+        logger.info(metrics.getReport());
+        
+        // Salvar relatório formatado em arquivo
+        await metrics.saveReportToFile();
+        
+        return { data: parsedResult, tokens, metrics };
       } else {
         logger.warn(`🔄 Agente A: No content found in response`);
         logger.warn(`🔄 Agente A: Full response: ${JSON.stringify(result, null, 2).substring(0, 1000)}...`);
+        metrics.end();
         return null;
       }
     } else {
@@ -602,10 +637,21 @@ async function getRagContext(metodo, vectorStoreId) {
 
 // Agente B - Vision Reviewer com RAG compartilhado
 async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, ragContext = null) {
+  const metrics = new AgentMetrics('Agente B (Vision Reviewer)');
+  metrics.start();
+  
+  metrics.startPhase('Carregar Prompt');
   const prompt = loadAgentPrompt('agente-b-vision-reviewer');
   if (!prompt) return null;
+  metrics.endPhase('Carregar Prompt');
   
+  metrics.startPhase('Processar Dados');
   const instruction = prompt.replaceAll("${metodo}", metodo);
+  
+  // Calcular tokens estimados
+  const instructionTokens = Math.ceil(instruction.length / 4);
+  const imageTokens = Math.ceil(imageBase64.length / 4); // Estimativa para imagem
+  metrics.endPhase('Processar Dados');
   
   try {
     logger.info(`🔄 Agente B: Iniciando análise de imagem (${imageBase64 ? imageBase64.length : 0} chars)`);
@@ -690,9 +736,11 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
     const content = visionResult.choices?.[0]?.message?.content;
     
     if (content) {
+      metrics.startPhase('Processar Conteúdo');
       logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
       const cleanContent = stripCodeFence(content);
       const parsedResult = JSON.parse(cleanContent);
+      metrics.endPhase('Processar Conteúdo');
       
       // Extrair tokens da resposta
       const tokens = {
@@ -700,7 +748,23 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
         output: visionResult.usage?.completion_tokens || 0
       };
       
-      return { data: parsedResult, tokens };
+      // Definir breakdown detalhado de tokens
+      const tokenBreakdown = {
+        'Prompt Base': instructionTokens,
+        'Imagem': imageTokens,
+        'RAG Context': ragContext ? Math.ceil(ragContext.length / 4) : 0,
+        'Total Entrada': tokens.input,
+        'Saída': tokens.output
+      };
+      
+      metrics.setTokens(tokens.input, tokens.output, tokenBreakdown);
+      metrics.end();
+      logger.info(metrics.getReport());
+      
+      // Salvar relatório formatado em arquivo
+      await metrics.saveReportToFile();
+      
+      return { data: parsedResult, tokens, metrics };
     } else {
       logger.warn(`🔄 Agente B: No content in vision response`);
       return null;
@@ -715,9 +779,15 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
 
 // Agente C - Reconciler
 async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = false, ragContext = null) {
+  const metrics = new AgentMetrics('Agente C (Reconciler)');
+  metrics.start();
+  
+  metrics.startPhase('Carregar Prompt');
   const prompt = loadAgentPrompt('agente-c-reconciler');
   if (!prompt) return null;
+  metrics.endPhase('Carregar Prompt');
   
+  metrics.startPhase('Processar Dados');
   const mensagem = [
     `heuristica: "${metodo}"`,
     `achadosA: ${JSON.stringify(achadosA, null, 2)}`,
@@ -725,6 +795,12 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
   ].join("\n");
   
   let fullPrompt = [prompt, "", mensagem].join("\n");
+  
+  // Calcular tokens estimados
+  const promptTokens = Math.ceil(prompt.length / 4);
+  const achadosATokens = Math.ceil(JSON.stringify(achadosA).length / 4);
+  const achadosBTokens = Math.ceil(JSON.stringify(achadosB).length / 4);
+  metrics.endPhase('Processar Dados');
   
   // ADICIONAR CONTEXTO RAG COMPARTILHADO
   if (ragContext && ragContext.trim()) {
@@ -771,9 +847,11 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       const content = result.output?.[1]?.content?.[0]?.text || result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
       
       if (content) {
+        metrics.startPhase('Processar Conteúdo');
         logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
         const cleanContent = stripCodeFence(content);
         const parsedResult = JSON.parse(cleanContent);
+        metrics.endPhase('Processar Conteúdo');
         
         // Extrair tokens da resposta (Responses API)
         // Debug: mostrar estrutura de usage
@@ -781,9 +859,27 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
           input: result.usage?.prompt_tokens || result.usage?.input_tokens || 0,
           output: result.usage?.completion_tokens || result.usage?.output_tokens || 0
         };
+        
+        // Definir breakdown detalhado de tokens
+        const tokenBreakdown = {
+          'Prompt Base': promptTokens,
+          'Achados A': achadosATokens,
+          'Achados B': achadosBTokens,
+          'RAG Context': ragContext ? Math.ceil(ragContext.length / 4) : 0,
+          'Total Entrada': tokens.input,
+          'Saída': tokens.output
+        };
+        
+        metrics.setTokens(tokens.input, tokens.output, tokenBreakdown);
         logger.info(`🔄 Agente C: Tokens extraídos: input=${tokens.input}, output=${tokens.output}`);
         
-        return { data: parsedResult, tokens };
+        metrics.end();
+        logger.info(metrics.getReport());
+        
+        // Salvar relatório formatado em arquivo
+        await metrics.saveReportToFile();
+        
+        return { data: parsedResult, tokens, metrics };
       }
     } else {
       // Usar Chat Completions para GPT-4, etc.
@@ -818,9 +914,11 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       const content = result.choices?.[0]?.message?.content;
       
       if (content) {
+        metrics.startPhase('Processar Conteúdo');
         logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
         const cleanContent = stripCodeFence(content);
         const parsedResult = JSON.parse(cleanContent);
+        metrics.endPhase('Processar Conteúdo');
         
         // Extrair tokens da resposta (Chat Completions API)
         const tokens = {
@@ -828,7 +926,24 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
           output: result.usage?.completion_tokens || 0
         };
         
-        return { data: parsedResult, tokens };
+        // Definir breakdown detalhado de tokens
+        const tokenBreakdown = {
+          'Prompt Base': promptTokens,
+          'Achados A': achadosATokens,
+          'Achados B': achadosBTokens,
+          'RAG Context': ragContext ? Math.ceil(ragContext.length / 4) : 0,
+          'Total Entrada': tokens.input,
+          'Saída': tokens.output
+        };
+        
+        metrics.setTokens(tokens.input, tokens.output, tokenBreakdown);
+        metrics.end();
+        logger.info(metrics.getReport());
+        
+        // Salvar relatório formatado em arquivo
+        await metrics.saveReportToFile();
+        
+        return { data: parsedResult, tokens, metrics };
       }
     }
     
