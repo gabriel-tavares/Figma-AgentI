@@ -473,7 +473,8 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       };
       
       if (isGPT5) {
-        // gpt-5-mini (não é GPT-5 real, usar parâmetros básicos)
+        // gpt-5-nano específico
+        requestBody.reasoning = { effort: "medium" };
         requestBody.max_output_tokens = 20000;
       } else if (isO3) {
         // o3-mini específico
