@@ -47,6 +47,9 @@ const probe = require("probe-image-size"); // npm i probe-image-size
 const { summarizeContextEchoWithAI } = require("./summarize_context_echo");
 const fsp = require('fs/promises');
 const { AgentMetrics } = require('./metrics');
+const { performance } = require('perf_hooks');
+const sec = (ms) => Number(ms/1000).toFixed(2);
+const crypto = require('crypto');
 
 /**
  * =========================
@@ -518,6 +521,18 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       else if (result.text !== undefined) {
         content = result.text;
         logger.info(`🔄 Agente A: Content extraído via method 6: ${typeof content} - ${content ? content.length : 'null/undefined'} chars`);
+      }
+      
+      // Verificar se content é um objeto e converter para string
+      if (content && typeof content === 'object') {
+        logger.warn(`🔄 Agente A: Content é objeto, tentando converter para string...`);
+        try {
+          content = JSON.stringify(content);
+          logger.info(`🔄 Agente A: Content convertido para string: ${content.length} chars`);
+        } catch (e) {
+          logger.error(`🔄 Agente A: Erro ao converter objeto para string: ${e.message}`);
+          content = null;
+        }
       }
       
       if (content) {

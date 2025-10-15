@@ -78,10 +78,9 @@ ${tokensReport}`;
   generateFormattedReport() {
     const totalDuration = this.getTotalDuration();
     const now = new Date();
-    const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '_');
     
     // Criar relatório formatado
-    const report = `
+    let report = `
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                           RELATÓRIO DE MÉTRICAS                             ║
 ║                              ${this.agentName}                              ║
