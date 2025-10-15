@@ -460,102 +460,47 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     
     // MODEL CALL: Chamada para o LLM
     const modelCall = await timeBlock(SPAN_TYPES.MODEL_CALL, async () => {
-      const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_A);
+      // Usar Chat Completions API (gpt-4o-mini)
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: MODELO_AGENTE_A,
+          messages: [{ role: "user", content: prep.result.prompt }],
+          max_tokens: 20000,
+          temperature: 0.2
+        })
+      });
       
-      if (isResponsesModel) {
-        // Usar Chat Completions com streaming
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST", 
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: MODELO_AGENTE_A,
-            messages: [{ role: "user", content: prep.result.prompt }],
-            max_tokens: 20000,
-            stream: true,
-            ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API Error: ${response.status}`);
-        }
-        
-        // Processar streaming
-        let fullContent = '';
-        let firstTokenTime = null;
-        let lastTokenTime = null;
-        let totalTokens = 0;
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-            
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') continue;
-                
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta = parsed.choices?.[0]?.delta;
-                  
-                  if (delta?.content) {
-                    if (!firstTokenTime) {
-                      firstTokenTime = performance.now();
-                    }
-                    
-                    fullContent += delta.content;
-                    lastTokenTime = performance.now();
-                    totalTokens++;
-                  }
-                } catch (e) {
-                  // Ignorar erros de parsing
-                }
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock();
-        }
-        
-        return {
-          content: fullContent,
-          firstTokenTime,
-          lastTokenTime,
-          totalTokens,
-          model: MODELO_AGENTE_A
-        };
-      } else {
-        // Fallback para Chat Completions sem streaming
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: MODELO_AGENTE_A,
-            messages: [{ role: "user", content: prep.result.prompt }],
-            max_tokens: 20000
-          })
-        });
-        
-        const result = await response.json();
-        return {
-          content: result.choices?.[0]?.message?.content,
-          model: MODELO_AGENTE_A
-        };
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
+      
+      const result = await response.json();
+      
+      // Debug: mostrar estrutura da resposta
+      logger.info(`🔄 Agente A: Response status: ${response.status}`);
+      logger.info(`🔄 Agente A: Response structure: ${JSON.stringify(result, null, 2).substring(0, 500)}...`);
+      
+      const content = result.choices?.[0]?.message?.content;
+      
+      if (!content) {
+        logger.error(`🔄 Agente A: No content in response`);
+        logger.error(`🔄 Agente A: Full response: ${JSON.stringify(result, null, 2)}`);
+        throw new Error('Nenhum conteúdo recebido do modelo');
+      }
+      
+      logger.info(`🔄 Agente A: Content received: ${content.length} chars`);
+      
+      return {
+        content: content,
+        usage: result.usage,
+        model: MODELO_AGENTE_A
+      };
     }, {
       model: MODELO_AGENTE_A,
       promptLength: prep.result.prompt.length,
@@ -585,9 +530,9 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     
     trace.addSpan(post.span);
     
-    // Calcular tokens (estimativa)
-    const promptTokens = Math.ceil(prep.result.prompt.length / 4);
-    const outputTokens = Math.ceil((modelCall.result.content?.length || 0) / 4);
+    // Calcular tokens (usar dados reais da API)
+    const promptTokens = modelCall.result.usage?.prompt_tokens || 0;
+    const outputTokens = modelCall.result.usage?.completion_tokens || 0;
     const totalTokens = promptTokens + outputTokens;
     
     trace.setTokens(promptTokens, outputTokens);
