@@ -15,6 +15,7 @@
       "https://lottie.host"
     ],
     "devAllowedDomains": [
+      "http://localhost:3000",
       "https://localhost:3000"
     ],
     "reasoning": "Plugin needs to communicate with backend API for UX analysis processing and load external CSS/font resources"

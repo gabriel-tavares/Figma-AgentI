@@ -14,10 +14,17 @@
 figma.showUI(__html__, { width: 380, height: 385 });
 
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
-// DESENVOLVIMENTO: usar localhost para testar mudanças no prompt
-// DESENVOLVIMENTO: const API_URL = "http://localhost:3000/analisar";
-// PRODUÇÃO: usar servidor Coolify com domínio personalizado
-const API_URL = "https://agenti.uxday.com.br/analisar";
+// Sistema de detecção automática de ambiente
+function getApiUrl(): string {
+  // No ambiente do Figma, sempre usar localhost para desenvolvimento
+  // Para produção, mudar manualmente para https://agenti.uxday.com.br/analisar
+  return "http://localhost:3000/analisar";
+  
+  // Para produção, descomente a linha abaixo e comente a linha acima:
+  // return "https://agenti.uxday.com.br/analisar";
+}
+
+const API_URL = getApiUrl();
 
 // ===== Extração direta do Figma (bypass Vision quando for frame real) =====
 type FigmaSpec = any;
