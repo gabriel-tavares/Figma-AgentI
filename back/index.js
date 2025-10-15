@@ -48,6 +48,14 @@ const { summarizeContextEchoWithAI } = require("./summarize_context_echo");
 const fsp = require('fs/promises');
 const { AgentMetrics } = require('./metrics');
 const { performance } = require('perf_hooks');
+const { 
+  SPAN_TYPES, 
+  timeBlock, 
+  emitTrace, 
+  createTrace, 
+  analyzeSpans, 
+  checkPerformanceBudget 
+} = require('./tracing');
 const sec = (ms) => Number(ms/1000).toFixed(2);
 const crypto = require('crypto');
 
@@ -376,249 +384,249 @@ const MODELO_AGENTE_C = process.env.MODELO_AGENTE_C || "o3-mini";
 
 // Agente A - JSON Analyst
 async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
+  const trace = createTrace('/agent-a');
+  trace.setAgent('Agente A (JSON Analyst)');
+  
   const metrics = new AgentMetrics('Agente A (JSON Analyst)');
   metrics.start();
   
-  metrics.startPhase('Carregar Prompt');
-  const prompt = loadAgentPrompt('agente-a-json-analyst');
-  if (!prompt) return null;
-  metrics.endPhase('Carregar Prompt');
-  
-  metrics.startPhase('Processar Dados');
-  const instruction = prompt.replaceAll("${metodo}", metodo);
-  const figmaData = JSON.stringify(figmaSpec, null, 2);
-  
-  const mensagem = [
-    `metodo: ${metodo}`,
-    `dados_figma:`,
-    figmaData
-  ].join("\n");
-  
-  const fullPrompt = [instruction, "", "DADOS:", mensagem].join("\n");
-  metrics.endPhase('Processar Dados');
-  
-  // Calcular tokens de entrada estimados
-  const promptTokens = Math.ceil(fullPrompt.length / 4); // Estimativa aproximada
-  const figmaTokens = Math.ceil(figmaData.length / 4);
-  const instructionTokens = Math.ceil(instruction.length / 4);
-  
   try {
-    metrics.startPhase('Verificar Modelo');
-    // Verificar se é modelo GPT-5/O3 (Responses API) ou GPT-4 (Chat Completions)
-    const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_A);
-    metrics.endPhase('Verificar Modelo');
-    
-    if (isResponsesModel) {
-      metrics.startPhase('Preparar Body');
-      // Usar Responses API para GPT-5, O3, etc.
-      const body = {
-        model: MODELO_AGENTE_A,
-        input: fullPrompt,
-        max_output_tokens: 20000,
-        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+    // PREP: Carregar e processar dados
+    const prep = await timeBlock(SPAN_TYPES.PREP, async () => {
+      const prompt = loadAgentPrompt('agente-a-json-analyst');
+      if (!prompt) throw new Error('Prompt não encontrado');
+      
+      const instruction = prompt.replaceAll("${metodo}", metodo);
+      const figmaData = JSON.stringify(figmaSpec, null, 2);
+      
+      const mensagem = [
+        `metodo: ${metodo}`,
+        `dados_figma:`,
+        figmaData
+      ].join("\n");
+      
+      const fullPrompt = [instruction, "", "DADOS:", mensagem].join("\n");
+      
+      return {
+        prompt: fullPrompt,
+        instruction,
+        figmaData,
+        inputBytes: JSON.stringify(figmaSpec).length
       };
-      metrics.endPhase('Preparar Body');
-      
-      metrics.startPhase('Serializar JSON');
-      const bodyString = JSON.stringify(body);
-      metrics.endPhase('Serializar JSON');
-      
-      logger.info(`🔄 Agente A: Enviando para Responses API (${MODELO_AGENTE_A})`);
-      logger.info(`🔄 Agente A: Prompt ${fullPrompt.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
-      
-      metrics.startPhase('Enviar HTTP Request');
-      const requestStart = performance.now();
-      
-      // Usar streaming para capturar timing detalhado
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST", 
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: MODELO_AGENTE_A,
-          messages: [{ role: "user", content: fullPrompt }],
-          max_tokens: 20000,
-          stream: true, // ← Habilitar streaming
-          ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
-        })
+    }, { 
+      metodo,
+      figmaComponents: figmaSpec?.length || 0,
+      useRag 
+    });
+    
+    trace.addSpan(prep.span);
+    metrics.startPhase('Carregar Prompt');
+    metrics.endPhase('Carregar Prompt');
+    
+    // RAG FETCH (se habilitado)
+    let ragContext = null;
+    if (useRag && vectorStoreId) {
+      const ragFetch = await timeBlock(SPAN_TYPES.RAG_FETCH, async () => {
+        // Simular busca RAG (implementar sua lógica real aqui)
+        const ragResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{
+              role: "user",
+              content: `Com base no seu conhecimento sobre ${metodo}, liste as principais heurísticas relevantes para análise de interfaces.`
+            }],
+            max_tokens: 2000,
+            temperature: 0.1
+          })
+        });
+        
+        const ragResult = await ragResponse.json();
+        return ragResult.choices?.[0]?.message?.content || '';
+      }, { 
+        vectorStoreId,
+        metodo,
+        k: 12 
       });
       
-      const requestEnd = performance.now();
-      metrics.endPhase('Enviar HTTP Request');
+      trace.addSpan(ragFetch.span);
+      ragContext = ragFetch.result;
+    }
+    
+    // MODEL CALL: Chamada para o LLM
+    const modelCall = await timeBlock(SPAN_TYPES.MODEL_CALL, async () => {
+      const isResponsesModel = /^(gpt-5|o3|o4)/i.test(MODELO_AGENTE_A);
       
-      // Medir tempo de rede vs processamento
-      const networkTime = requestEnd - requestStart;
-      metrics.setNetworkTime(networkTime);
-      logger.info(`🔄 Agente A: Tempo de rede: ${sec(networkTime)}s`);
-      
-      logger.info(`🔄 Agente A: Response status: ${response.status}`);
-      
-      if (!response.ok) {
-        logger.error(`🔄 Agente A: API Error: ${response.status}`);
-        metrics.end();
-        return null;
-      }
-      
-      metrics.startPhase('Processar Streaming');
-      let firstTokenTime = null;
-      let lastTokenTime = null;
-      let fullContent = '';
-      let totalTokens = 0;
-      
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-              
-              try {
-                const parsed = JSON.parse(data);
-                const delta = parsed.choices?.[0]?.delta;
+      if (isResponsesModel) {
+        // Usar Chat Completions com streaming
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST", 
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: MODELO_AGENTE_A,
+            messages: [{ role: "user", content: prep.result.prompt }],
+            max_tokens: 20000,
+            stream: true,
+            ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+        
+        // Processar streaming
+        let fullContent = '';
+        let firstTokenTime = null;
+        let lastTokenTime = null;
+        let totalTokens = 0;
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
                 
-                if (delta?.content) {
-                  if (!firstTokenTime) {
-                    firstTokenTime = performance.now();
-                    logger.info(`🔄 Agente A: Primeiro token recebido em ${sec(firstTokenTime - requestStart)}s`);
-                  }
+                try {
+                  const parsed = JSON.parse(data);
+                  const delta = parsed.choices?.[0]?.delta;
                   
-                  fullContent += delta.content;
-                  lastTokenTime = performance.now();
-                  totalTokens++;
+                  if (delta?.content) {
+                    if (!firstTokenTime) {
+                      firstTokenTime = performance.now();
+                    }
+                    
+                    fullContent += delta.content;
+                    lastTokenTime = performance.now();
+                    totalTokens++;
+                  }
+                } catch (e) {
+                  // Ignorar erros de parsing
                 }
-              } catch (e) {
-                // Ignorar erros de parsing de chunks individuais
               }
             }
           }
-        }
-      } finally {
-        reader.releaseLock();
-      }
-      
-      metrics.endPhase('Processar Streaming');
-      
-      if (firstTokenTime && lastTokenTime) {
-        const timeToFirstToken = firstTokenTime - requestStart;
-        const generationTime = lastTokenTime - firstTokenTime;
-        const tokensPerSecond = totalTokens / (generationTime / 1000);
-        
-        logger.info(`🔄 Agente A: Time to First Token: ${sec(timeToFirstToken)}s`);
-        logger.info(`🔄 Agente A: Generation Time: ${sec(generationTime)}s`);
-        logger.info(`🔄 Agente A: Tokens per Second: ${tokensPerSecond.toFixed(2)}`);
-      }
-      
-      const content = fullContent;
-      
-      if (content) {
-        metrics.startPhase('Processar Conteúdo');
-        
-        // Verificar se content é uma string válida antes de tentar fazer JSON.parse
-        let cleanContent;
-        let parsedResult;
-        
-        if (typeof content === 'string') {
-          cleanContent = stripCodeFence(content);
-          try {
-            parsedResult = JSON.parse(cleanContent);
-          } catch (e) {
-            logger.error(`🔄 Agente A: Erro ao fazer JSON.parse: ${e.message}`);
-            logger.error(`🔄 Agente A: Content que causou erro: ${cleanContent.substring(0, 200)}...`);
-            metrics.endPhase('Processar Conteúdo');
-            metrics.end();
-            return null;
-          }
-        } else {
-          logger.error(`🔄 Agente A: Content não é string válida: ${typeof content}`);
-          metrics.endPhase('Processar Conteúdo');
-          metrics.end();
-          return null;
+        } finally {
+          reader.releaseLock();
         }
         
-        metrics.endPhase('Processar Conteúdo');
-        
-        // Extrair tokens da resposta (Responses API)
-        // Debug: mostrar estrutura de usage
-        const tokens = {
-          input: result.usage?.prompt_tokens || result.usage?.input_tokens || 0,
-          output: result.usage?.completion_tokens || result.usage?.output_tokens || 0
+        return {
+          content: fullContent,
+          firstTokenTime,
+          lastTokenTime,
+          totalTokens,
+          model: MODELO_AGENTE_A
         };
-        
-        // Definir breakdown detalhado de tokens
-        const tokenBreakdown = {
-          'Prompt Base': instructionTokens,
-          'Dados Figma': figmaTokens,
-          'RAG Context': useRag ? (result.usage?.input_tokens_details?.cached_tokens || 0) : 0,
-          'Total Entrada': tokens.input,
-          'Saída': tokens.output
-        };
-        
-        metrics.setTokens(tokens.input, tokens.output, tokenBreakdown);
-        logger.info(`🔄 Agente A: Tokens extraídos: input=${tokens.input}, output=${tokens.output}`);
-        
-        metrics.end();
-        logger.info(metrics.getReport());
-        
-        // Salvar relatório formatado em arquivo
-        await metrics.saveReportToFile();
-        
-        return { data: parsedResult, tokens, metrics };
       } else {
-        logger.warn(`🔄 Agente A: No content found in response`);
-        logger.warn(`🔄 Agente A: Full response: ${JSON.stringify(result, null, 2).substring(0, 1000)}...`);
-        metrics.end();
-        return null;
-      }
-    } else {
-      // Usar Chat Completions para GPT-4, etc.
-      const body = {
-        model: MODELO_AGENTE_A,
-        messages: [{ role: "user", content: fullPrompt }],
-        max_tokens: 20000,
-        ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
-      };
-      
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST", 
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-      
-      const result = await response.json();
-      const content = result.choices?.[0]?.message?.content;
-      
-      if (content) {
-        const cleanContent = stripCodeFence(content);
-        const parsedResult = JSON.parse(cleanContent);
+        // Fallback para Chat Completions sem streaming
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: MODELO_AGENTE_A,
+            messages: [{ role: "user", content: prep.result.prompt }],
+            max_tokens: 20000
+          })
+        });
         
-        // Extrair tokens da resposta (Chat Completions API)
-        const tokens = {
-          input: result.usage?.prompt_tokens || 0,
-          output: result.usage?.completion_tokens || 0
+        const result = await response.json();
+        return {
+          content: result.choices?.[0]?.message?.content,
+          model: MODELO_AGENTE_A
         };
-        
-        return { data: parsedResult, tokens };
       }
-    }
+    }, {
+      model: MODELO_AGENTE_A,
+      promptLength: prep.result.prompt.length,
+      useRag,
+      hasRagContext: !!ragContext
+    });
     
-    return null;
-  } catch (e) {
-    logger.error(`Erro no Agente A: ${e.message}`);
-    logger.error(`Stack trace: ${e.stack}`);
+    trace.addSpan(modelCall.span);
+    
+    // POST: Processar resposta
+    const post = await timeBlock(SPAN_TYPES.POST, async () => {
+      if (!modelCall.result.content) {
+        throw new Error('Nenhum conteúdo recebido do modelo');
+      }
+      
+      const cleanContent = stripCodeFence(modelCall.result.content);
+      const parsedResult = JSON.parse(cleanContent);
+      
+      return {
+        achados: parsedResult.achados || [],
+        contentLength: modelCall.result.content.length,
+        cleanContentLength: cleanContent.length
+      };
+    }, {
+      contentLength: modelCall.result.content?.length || 0
+    });
+    
+    trace.addSpan(post.span);
+    
+    // Calcular tokens (estimativa)
+    const promptTokens = Math.ceil(prep.result.prompt.length / 4);
+    const outputTokens = Math.ceil((modelCall.result.content?.length || 0) / 4);
+    const totalTokens = promptTokens + outputTokens;
+    
+    trace.setTokens(promptTokens, outputTokens, totalTokens);
+    
+    // Finalizar métricas
+    metrics.setTokens(promptTokens, outputTokens, {
+      'Prompt Base': Math.ceil(prep.result.instruction.length / 4),
+      'Dados Figma': Math.ceil(prep.result.figmaData.length / 4),
+      'RAG Context': ragContext ? Math.ceil(ragContext.length / 4) : 0,
+      'Total Entrada': promptTokens,
+      'Saída': outputTokens
+    });
+    
+    metrics.end();
+    
+    // Emitir trace
+    emitTrace(trace);
+    
+    // Verificar budget de performance
+    checkPerformanceBudget(trace);
+    
+    // Análise de spans
+    const analysis = analyzeSpans(trace.spans);
+    logger.info(`📊 Análise de spans - Mais lento: ${analysis.slowest.name} (${analysis.slowest.ms}ms)`);
+    
+    logger.info(metrics.getReport());
+    await metrics.saveReportToFile();
+    
+    return { 
+      data: post.result, 
+      tokens: { input: promptTokens, output: outputTokens },
+      metrics,
+      trace: trace.toJSON()
+    };
+    
+  } catch (error) {
+    logger.error(`❌ Agente A falhou: ${error.message}`);
+    trace.addSpan(new Span('error', 0, { error: error.message }));
+    emitTrace(trace);
+    metrics.end();
     return null;
   }
 }

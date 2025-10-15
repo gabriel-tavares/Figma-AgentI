@@ -39,14 +39,53 @@ class AgentMetrics {
     }
   }
 
-  setNetworkTime(networkTimeMs) {
-    this.networkTime = networkTimeMs;
+  // Métricas de benchmark conhecidas por modelo
+  static getModelBenchmarks() {
+    return {
+      "gpt-5-mini": {
+        expectedLatency: 300, // ms
+        expectedTokensPerSecond: 75,
+        maxOptimalTokens: 20000
+      },
+      "gpt-4o-mini": {
+        expectedLatency: 200,
+        expectedTokensPerSecond: 100,
+        maxOptimalTokens: 4000
+      },
+      "o3-mini": {
+        expectedLatency: 400,
+        expectedTokensPerSecond: 60,
+        maxOptimalTokens: 15000
+      }
+    };
   }
 
-  getAIProcessingTime() {
-    if (!this.networkTime || !this.endTime || !this.startTime) return 0;
-    const totalTime = this.getTotalDuration();
-    return Math.max(0, totalTime - this.networkTime);
+  // Calcular performance vs benchmark esperado
+  calculatePerformanceScore() {
+    const benchmarks = AgentMetrics.getModelBenchmarks();
+    const modelName = this.agentName.includes('gpt-5') ? 'gpt-5-mini' : 
+                     this.agentName.includes('gpt-4') ? 'gpt-4o-mini' : 'o3-mini';
+    
+    const benchmark = benchmarks[modelName];
+    if (!benchmark) return null;
+
+    const actualLatency = this.getTotalDuration();
+    const actualTokensPerSecond = this.tokens.output / (actualLatency / 1000);
+    
+    const latencyScore = Math.max(0, 100 - ((actualLatency - benchmark.expectedLatency) / benchmark.expectedLatency * 100));
+    const tokensScore = Math.min(100, (actualTokensPerSecond / benchmark.expectedTokensPerSecond) * 100);
+    
+    return {
+      model: modelName,
+      latencyScore: Math.round(latencyScore),
+      tokensScore: Math.round(tokensScore),
+      overallScore: Math.round((latencyScore + tokensScore) / 2),
+      benchmark: benchmark,
+      actual: {
+        latency: actualLatency,
+        tokensPerSecond: actualTokensPerSecond
+      }
+    };
   }
 
   start() {
@@ -88,6 +127,7 @@ ${tokensReport}`;
     const totalDuration = this.getTotalDuration();
     const aiProcessingTime = this.getAIProcessingTime();
     const networkTime = this.networkTime || 0;
+    const performanceScore = this.calculatePerformanceScore();
     const now = new Date();
     
     // Criar relatório formatado
@@ -100,7 +140,17 @@ ${tokensReport}`;
 ║  📅 Data/Hora: ${now.toLocaleString('pt-BR')}                                    ║
 ║  ⏱️  Tempo Total: ${sec(totalDuration)}s                                           ║
 ║  🌐 Tempo de Rede: ${sec(networkTime)}s                                           ║
-║  🧠 Tempo de IA: ${sec(aiProcessingTime)}s                                           ║
+║  🧠 Tempo de IA: ${sec(aiProcessingTime)}s                                           ║`;
+
+    // Adicionar score de performance se disponível
+    if (performanceScore) {
+      const scoreColor = performanceScore.overallScore >= 80 ? '🟢' : 
+                        performanceScore.overallScore >= 60 ? '🟡' : '🔴';
+      report += `
+║  ${scoreColor} Score de Performance: ${performanceScore.overallScore}% (${performanceScore.model}) ║`;
+    }
+
+    report += `
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                              ANÁLISE DE TEMPO                               ║
@@ -145,7 +195,21 @@ ${tokensReport}`;
 ║  ⚡ Tokens por segundo: ${(this.tokens.output / (totalDuration / 1000)).toFixed(2)} tokens/s                    ║
 ║  💸 Custo estimado:     $${((this.tokens.input * 0.00001) + (this.tokens.output * 0.00003)).toFixed(4)} USD                    ║
 ║  🌐 % Tempo de Rede:    ${((networkTime / totalDuration) * 100).toFixed(1)}%                                           ║
-║  🧠 % Tempo de IA:      ${((aiProcessingTime / totalDuration) * 100).toFixed(1)}%                                           ║
+║  🧠 % Tempo de IA:      ${((aiProcessingTime / totalDuration) * 100).toFixed(1)}%                                           ║`;
+
+    // Adicionar comparação com benchmark se disponível
+    if (performanceScore) {
+      const latencyDiff = ((performanceScore.actual.latency - performanceScore.benchmark.expectedLatency) / performanceScore.benchmark.expectedLatency * 100).toFixed(1);
+      const tokensDiff = ((performanceScore.actual.tokensPerSecond - performanceScore.benchmark.expectedTokensPerSecond) / performanceScore.benchmark.expectedTokensPerSecond * 100).toFixed(1);
+      
+      report += `
+║                                                                              ║
+║  📊 vs Benchmark (${performanceScore.model}):                                    ║
+║     ⏱️  Latência: ${latencyDiff > 0 ? '+' : ''}${latencyDiff}% vs esperado                              ║
+║     ⚡ Tokens/s: ${tokensDiff > 0 ? '+' : ''}${tokensDiff}% vs esperado                                ║`;
+    }
+
+    report += `
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `;
