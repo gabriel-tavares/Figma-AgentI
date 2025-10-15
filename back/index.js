@@ -476,7 +476,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         // gpt-5-nano específico
         requestBody.reasoning_effort = "medium";
         requestBody.verbosity = "medium";
-        requestBody.max_output_tokens = 20000;
+        requestBody.max_tokens = 20000;
       } else if (isO3) {
         // o3-mini específico
         requestBody.reasoning = { effort: "medium" };
