@@ -460,19 +460,22 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     
     // MODEL CALL: Chamada para o LLM
     const modelCall = await timeBlock(SPAN_TYPES.MODEL_CALL, async () => {
-      // Usar Chat Completions API (gpt-4o-mini)
+      // Verificar se é modelo que usa max_completion_tokens
+      const isNewModel = /^(gpt-5|o3)/i.test(MODELO_AGENTE_A);
+      
+      // Usar Chat Completions API
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         },
-          body: JSON.stringify({
-            model: MODELO_AGENTE_A,
-            messages: [{ role: "user", content: prep.result.prompt }],
-            max_completion_tokens: 20000,
-            temperature: 0.2
-          })
+        body: JSON.stringify({
+          model: MODELO_AGENTE_A,
+          messages: [{ role: "user", content: prep.result.prompt }],
+          ...(isNewModel ? { max_completion_tokens: 20000 } : { max_tokens: 20000 }),
+          temperature: 0.2
+        })
       });
       
       if (!response.ok) {
