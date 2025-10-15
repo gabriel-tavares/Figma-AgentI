@@ -460,43 +460,59 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     
     // MODEL CALL: Chamada para o LLM
     const modelCall = await timeBlock(SPAN_TYPES.MODEL_CALL, async () => {
-      // Verificar tipo de modelo para usar parâmetros corretos
+      // Verificar tipo de modelo para usar API correta
       const isGPT5 = /^gpt-5/i.test(MODELO_AGENTE_A);
       const isO3 = /^o3/i.test(MODELO_AGENTE_A);
-      const isNewModel = isGPT5 || isO3;
       
-      // Preparar parâmetros baseados no modelo
-      let requestBody = {
-        model: MODELO_AGENTE_A,
-        messages: [{ role: "user", content: prep.result.prompt }],
-        temperature: 0.2
-      };
+      let response;
       
       if (isGPT5) {
-        // gpt-5-nano específico (GPT-5 real)
-        requestBody.reasoning = { effort: "medium" };
-        requestBody.text = { verbosity: "medium" };
-        requestBody.max_output_tokens = 20000;
-        // Remove temperature (não suportado por GPT-5)
-        delete requestBody.temperature;
-      } else if (isO3) {
-        // o3-mini específico
-        requestBody.reasoning = { effort: "medium" };
-        requestBody.max_output_tokens = 20000;
+        // gpt-5-nano usa Responses API
+        const requestBody = {
+          model: MODELO_AGENTE_A,
+          input: prep.result.prompt,
+          reasoning: { effort: "medium" },
+          text: { verbosity: "medium" }
+        };
+        
+        logger.info(`🔄 Agente A: Usando Responses API para ${MODELO_AGENTE_A}`);
+        
+        response = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(requestBody)
+        });
       } else {
-        // Modelos antigos (gpt-4, etc.)
-        requestBody.max_tokens = 20000;
+        // Outros modelos usam Chat Completions API
+        const requestBody = {
+          model: MODELO_AGENTE_A,
+          messages: [{ role: "user", content: prep.result.prompt }],
+          temperature: 0.2
+        };
+        
+        if (isO3) {
+          // o3-mini específico
+          requestBody.reasoning = { effort: "medium" };
+          requestBody.max_output_tokens = 20000;
+        } else {
+          // Modelos antigos (gpt-4, etc.)
+          requestBody.max_tokens = 20000;
+        }
+        
+        logger.info(`🔄 Agente A: Usando Chat Completions API para ${MODELO_AGENTE_A}`);
+        
+        response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(requestBody)
+        });
       }
-      
-      // Usar Chat Completions API
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-      });
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -509,7 +525,18 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       logger.info(`🔄 Agente A: Response status: ${response.status}`);
       logger.info(`🔄 Agente A: Response structure: ${JSON.stringify(result, null, 2).substring(0, 500)}...`);
       
-      const content = result.choices?.[0]?.message?.content;
+      let content;
+      let usage;
+      
+      if (isGPT5) {
+        // Responses API retorna output_text
+        content = result.output_text;
+        usage = result.usage;
+      } else {
+        // Chat Completions API retorna choices[0].message.content
+        content = result.choices?.[0]?.message?.content;
+        usage = result.usage;
+      }
       
       if (!content) {
         logger.error(`🔄 Agente A: No content in response`);
@@ -521,7 +548,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       
       return {
         content: content,
-        usage: result.usage,
+        usage: usage,
         model: MODELO_AGENTE_A
       };
     }, {
