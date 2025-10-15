@@ -409,7 +409,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     metrics.endPhase('Verificar Modelo');
     
     if (isResponsesModel) {
-      metrics.startPhase('Preparar Request');
+      metrics.startPhase('Preparar Body');
       // Usar Responses API para GPT-5, O3, etc.
       const body = {
         model: MODELO_AGENTE_A,
@@ -417,128 +417,135 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         max_output_tokens: 20000,
         ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
       };
-      metrics.endPhase('Preparar Request');
+      metrics.endPhase('Preparar Body');
+      
+      metrics.startPhase('Serializar JSON');
+      const bodyString = JSON.stringify(body);
+      metrics.endPhase('Serializar JSON');
       
       logger.info(`🔄 Agente A: Enviando para Responses API (${MODELO_AGENTE_A})`);
       logger.info(`🔄 Agente A: Prompt ${fullPrompt.length} chars, RAG: ${useRag ? 'ON' : 'OFF'}`);
       
-      metrics.startPhase('Enviar Request');
-      const response = await fetch("https://api.openai.com/v1/responses", {
+      metrics.startPhase('Enviar HTTP Request');
+      const requestStart = performance.now();
+      
+      // Usar streaming para capturar timing detalhado
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST", 
         headers: {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          model: MODELO_AGENTE_A,
+          messages: [{ role: "user", content: fullPrompt }],
+          max_tokens: 20000,
+          stream: true, // ← Habilitar streaming
+          ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
+        })
       });
-      metrics.endPhase('Enviar Request');
+      
+      const requestEnd = performance.now();
+      metrics.endPhase('Enviar HTTP Request');
+      
+      // Medir tempo de rede vs processamento
+      const networkTime = requestEnd - requestStart;
+      metrics.setNetworkTime(networkTime);
+      logger.info(`🔄 Agente A: Tempo de rede: ${sec(networkTime)}s`);
       
       logger.info(`🔄 Agente A: Response status: ${response.status}`);
       
-      metrics.startPhase('Processar Response');
-      const result = await response.json();
-      metrics.endPhase('Processar Response');
-      
       if (!response.ok) {
-        logger.error(`🔄 Agente A: API Error: ${JSON.stringify(result)}`);
+        logger.error(`🔄 Agente A: API Error: ${response.status}`);
         metrics.end();
         return null;
       }
       
-      // Debug: mostrar estrutura completa da resposta
-      logger.info(`🔄 Agente A: Status: ${result.status}`);
+      metrics.startPhase('Processar Streaming');
+      let firstTokenTime = null;
+      let lastTokenTime = null;
+      let fullContent = '';
+      let totalTokens = 0;
       
-      if (result.output && Array.isArray(result.output) && result.output.length > 0) {
-        
-        // Debug detalhado do output[0]
-        if (result.output[0].type) {
-          logger.info(`🔄 Agente A: Output[0] type: ${result.output[0].type}`);
-        }
-        if (result.output[0].summary) {
-          logger.info(`🔄 Agente A: Output[0] summary: ${result.output[0].summary}`);
-        }
-        
-      // Verificar se existe output[1] com conteúdo
-      if (result.output.length > 1) {
-        logger.info(`🔄 Agente A: Output[1] keys: ${Object.keys(result.output[1]).join(', ')}`);
-        if (result.output[1].content) {
-          logger.info(`🔄 Agente A: Output[1] tem content!`);
-          logger.info(`🔄 Agente A: Output[1] content type: ${typeof result.output[1].content}`);
-          if (Array.isArray(result.output[1].content)) {
-            logger.info(`🔄 Agente A: Output[1] content length: ${result.output[1].content.length}`);
-            if (result.output[1].content[0]) {
-              logger.info(`🔄 Agente A: Output[1] content[0] keys: ${Object.keys(result.output[1].content[0]).join(', ')}`);
-              if (result.output[1].content[0].text) {
-                logger.info(`🔄 Agente A: Output[1] content[0].text type: ${typeof result.output[1].content[0].text}`);
-                if (typeof result.output[1].content[0].text === 'object') {
-                  logger.info(`🔄 Agente A: Output[1] content[0].text keys: ${Object.keys(result.output[1].content[0].text).join(', ')}`);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta;
+                
+                if (delta?.content) {
+                  if (!firstTokenTime) {
+                    firstTokenTime = performance.now();
+                    logger.info(`🔄 Agente A: Primeiro token recebido em ${sec(firstTokenTime - requestStart)}s`);
+                  }
+                  
+                  fullContent += delta.content;
+                  lastTokenTime = performance.now();
+                  totalTokens++;
                 }
+              } catch (e) {
+                // Ignorar erros de parsing de chunks individuais
               }
             }
-          } else {
-            logger.info(`🔄 Agente A: Output[1] content keys: ${Object.keys(result.output[1].content).join(', ')}`);
           }
         }
+      } finally {
+        reader.releaseLock();
       }
+      
+      metrics.endPhase('Processar Streaming');
+      
+      if (firstTokenTime && lastTokenTime) {
+        const timeToFirstToken = firstTokenTime - requestStart;
+        const generationTime = lastTokenTime - firstTokenTime;
+        const tokensPerSecond = totalTokens / (generationTime / 1000);
         
-        if (result.output[0].content && Array.isArray(result.output[0].content)) {
-          logger.info(`🔄 Agente A: Content length: ${result.output[0].content.length}`);
-          if (result.output[0].content[0]) {
-            logger.info(`🔄 Agente A: Content[0] keys: ${Object.keys(result.output[0].content[0]).join(', ')}`);
-          }
-        }
+        logger.info(`🔄 Agente A: Time to First Token: ${sec(timeToFirstToken)}s`);
+        logger.info(`🔄 Agente A: Generation Time: ${sec(generationTime)}s`);
+        logger.info(`🔄 Agente A: Tokens per Second: ${tokensPerSecond.toFixed(2)}`);
       }
       
-      // Tentar diferentes formas de extrair o conteúdo
-      let content = null;
-      
-      // Método 1: result.output[1].content[0].text.value (estrutura completa)
-      if (result.output?.[1]?.content?.[0]?.text?.value) {
-        content = result.output[1].content[0].text.value;
-        logger.info(`🔄 Agente A: Content extraído via method 1: ${content.length} chars`);
-      }
-      // Método 2: result.output[1].content[0].text (sem .value)
-      else if (result.output?.[1]?.content?.[0]?.text && typeof result.output[1].content[0].text === 'string') {
-        content = result.output[1].content[0].text;
-        logger.info(`🔄 Agente A: Content extraído via method 2: ${content.length} chars`);
-      }
-      // Método 3: result.output[1].content (direto - para Responses API)
-      else if (result.output?.[1]?.content && typeof result.output[1].content === 'string') {
-        content = result.output[1].content;
-        logger.info(`🔄 Agente A: Content extraído via method 3: ${content.length} chars`);
-      }
-      // Método 4: result.output[0].content[0].text.value (fallback para output[0])
-      else if (result.output?.[0]?.content?.[0]?.text?.value) {
-        content = result.output[0].content[0].text.value;
-        logger.info(`🔄 Agente A: Content extraído via method 4: ${content.length} chars`);
-      }
-      // Método 5: result.output_text
-      else if (result.output_text) {
-        content = result.output_text;
-        logger.info(`🔄 Agente A: Content extraído via method 5: ${content.length} chars`);
-      }
-      // Método 6: result.text
-      else if (result.text !== undefined) {
-        content = result.text;
-        logger.info(`🔄 Agente A: Content extraído via method 6: ${typeof content} - ${content ? content.length : 'null/undefined'} chars`);
-      }
-      
-      // Verificar se content é um objeto e converter para string
-      if (content && typeof content === 'object') {
-        logger.warn(`🔄 Agente A: Content é objeto, tentando converter para string...`);
-        try {
-          content = JSON.stringify(content);
-          logger.info(`🔄 Agente A: Content convertido para string: ${content.length} chars`);
-        } catch (e) {
-          logger.error(`🔄 Agente A: Erro ao converter objeto para string: ${e.message}`);
-          content = null;
-        }
-      }
+      const content = fullContent;
       
       if (content) {
         metrics.startPhase('Processar Conteúdo');
-        const cleanContent = stripCodeFence(content);
-        const parsedResult = JSON.parse(cleanContent);
+        
+        // Verificar se content é uma string válida antes de tentar fazer JSON.parse
+        let cleanContent;
+        let parsedResult;
+        
+        if (typeof content === 'string') {
+          cleanContent = stripCodeFence(content);
+          try {
+            parsedResult = JSON.parse(cleanContent);
+          } catch (e) {
+            logger.error(`🔄 Agente A: Erro ao fazer JSON.parse: ${e.message}`);
+            logger.error(`🔄 Agente A: Content que causou erro: ${cleanContent.substring(0, 200)}...`);
+            metrics.endPhase('Processar Conteúdo');
+            metrics.end();
+            return null;
+          }
+        } else {
+          logger.error(`🔄 Agente A: Content não é string válida: ${typeof content}`);
+          metrics.endPhase('Processar Conteúdo');
+          metrics.end();
+          return null;
+        }
+        
         metrics.endPhase('Processar Conteúdo');
         
         // Extrair tokens da resposta (Responses API)
@@ -753,8 +760,15 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
     if (content) {
       metrics.startPhase('Processar Conteúdo');
       logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
+      
+      metrics.startPhase('Limpar Code Fence');
       const cleanContent = stripCodeFence(content);
+      metrics.endPhase('Limpar Code Fence');
+      
+      metrics.startPhase('Parse JSON');
       const parsedResult = JSON.parse(cleanContent);
+      metrics.endPhase('Parse JSON');
+      
       metrics.endPhase('Processar Conteúdo');
       
       // Extrair tokens da resposta
@@ -864,8 +878,15 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       if (content) {
         metrics.startPhase('Processar Conteúdo');
         logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
+        
+        metrics.startPhase('Limpar Code Fence');
         const cleanContent = stripCodeFence(content);
+        metrics.endPhase('Limpar Code Fence');
+        
+        metrics.startPhase('Parse JSON');
         const parsedResult = JSON.parse(cleanContent);
+        metrics.endPhase('Parse JSON');
+        
         metrics.endPhase('Processar Conteúdo');
         
         // Extrair tokens da resposta (Responses API)

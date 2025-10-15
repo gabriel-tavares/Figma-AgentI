@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const sec = (ms) => Number(ms/1000).toFixed(2);
+const sec = (ms) => Number(ms/1000).toFixed(3); // Aumentar precisão para 3 casas decimais
 
 class AgentMetrics {
   constructor(agentName) {
@@ -39,10 +39,14 @@ class AgentMetrics {
     }
   }
 
-  setTokens(input, output, breakdown = {}) {
-    this.tokens.input = input;
-    this.tokens.output = output;
-    this.tokens.breakdown = breakdown;
+  setNetworkTime(networkTimeMs) {
+    this.networkTime = networkTimeMs;
+  }
+
+  getAIProcessingTime() {
+    if (!this.networkTime || !this.endTime || !this.startTime) return 0;
+    const totalTime = this.getTotalDuration();
+    return Math.max(0, totalTime - this.networkTime);
   }
 
   start() {
@@ -59,6 +63,9 @@ class AgentMetrics {
 
   getReport() {
     const totalDuration = this.getTotalDuration();
+    const aiProcessingTime = this.getAIProcessingTime();
+    const networkTime = this.networkTime || 0;
+    
     const phasesReport = Object.entries(this.phases)
       .map(([name, phase]) => `    📊 ${name}: ${sec(phase.duration)}s`)
       .join('\n');
@@ -70,6 +77,8 @@ class AgentMetrics {
     return `
 📈 MÉTRICAS DETALHADAS - ${this.agentName}:
 ⏱️ Tempo Total: ${sec(totalDuration)}s
+⏱️ Tempo de Rede: ${sec(networkTime)}s
+🧠 Tempo de IA: ${sec(aiProcessingTime)}s
 ${phasesReport}
 💰 Tokens Total: ${this.tokens.input} entrada + ${this.tokens.output} saída = ${this.tokens.input + this.tokens.output} total
 ${tokensReport}`;
@@ -77,6 +86,8 @@ ${tokensReport}`;
 
   generateFormattedReport() {
     const totalDuration = this.getTotalDuration();
+    const aiProcessingTime = this.getAIProcessingTime();
+    const networkTime = this.networkTime || 0;
     const now = new Date();
     
     // Criar relatório formatado
@@ -88,6 +99,8 @@ ${tokensReport}`;
 ║                                                                              ║
 ║  📅 Data/Hora: ${now.toLocaleString('pt-BR')}                                    ║
 ║  ⏱️  Tempo Total: ${sec(totalDuration)}s                                           ║
+║  🌐 Tempo de Rede: ${sec(networkTime)}s                                           ║
+║  🧠 Tempo de IA: ${sec(aiProcessingTime)}s                                           ║
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                              ANÁLISE DE TEMPO                               ║
@@ -131,6 +144,8 @@ ${tokensReport}`;
 ║                                                                              ║
 ║  ⚡ Tokens por segundo: ${(this.tokens.output / (totalDuration / 1000)).toFixed(2)} tokens/s                    ║
 ║  💸 Custo estimado:     $${((this.tokens.input * 0.00001) + (this.tokens.output * 0.00003)).toFixed(4)} USD                    ║
+║  🌐 % Tempo de Rede:    ${((networkTime / totalDuration) * 100).toFixed(1)}%                                           ║
+║  🧠 % Tempo de IA:      ${((aiProcessingTime / totalDuration) * 100).toFixed(1)}%                                           ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `;
