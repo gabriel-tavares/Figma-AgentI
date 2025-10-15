@@ -467,12 +467,12 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          model: MODELO_AGENTE_A,
-          messages: [{ role: "user", content: prep.result.prompt }],
-          max_tokens: 20000,
-          temperature: 0.2
-        })
+          body: JSON.stringify({
+            model: MODELO_AGENTE_A,
+            messages: [{ role: "user", content: prep.result.prompt }],
+            max_completion_tokens: 20000,
+            temperature: 0.2
+          })
       });
       
       if (!response.ok) {
