@@ -50,6 +50,7 @@ const { AgentMetrics } = require('./metrics');
 const { performance } = require('perf_hooks');
 const { 
   SPAN_TYPES, 
+  Span,
   timeBlock, 
   emitTrace, 
   createTrace, 
@@ -589,7 +590,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     const outputTokens = Math.ceil((modelCall.result.content?.length || 0) / 4);
     const totalTokens = promptTokens + outputTokens;
     
-    trace.setTokens(promptTokens, outputTokens, totalTokens);
+    trace.setTokens(promptTokens, outputTokens);
     
     // Finalizar métricas
     metrics.setTokens(promptTokens, outputTokens, {

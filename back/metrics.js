@@ -32,6 +32,12 @@ class AgentMetrics {
     };
   }
 
+  setTokens(input, output, breakdown = {}) {
+    this.tokens.input = input;
+    this.tokens.output = output;
+    this.tokens.breakdown = breakdown;
+  }
+
   endPhase(phaseName) {
     if (this.phases[phaseName]) {
       this.phases[phaseName].endTime = performance.now();
@@ -86,6 +92,12 @@ class AgentMetrics {
         tokensPerSecond: actualTokensPerSecond
       }
     };
+  }
+
+  getAIProcessingTime() {
+    if (!this.networkTime || !this.endTime || !this.startTime) return 0;
+    const totalTime = this.getTotalDuration();
+    return Math.max(0, totalTime - this.networkTime);
   }
 
   start() {
