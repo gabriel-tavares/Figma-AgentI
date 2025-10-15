@@ -421,7 +421,6 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       logger.info(`🔄 Agente A: Response status: ${response.status}`);
       
       const result = await response.json();
-      logger.info(`🔄 Agente A: Response keys: ${Object.keys(result).join(', ')}`);
       
       if (!response.ok) {
         logger.error(`🔄 Agente A: API Error: ${JSON.stringify(result)}`);
@@ -430,10 +429,8 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       
       // Debug: mostrar estrutura completa da resposta
       logger.info(`🔄 Agente A: Status: ${result.status}`);
-      logger.info(`🔄 Agente A: Output type: ${typeof result.output}, length: ${Array.isArray(result.output) ? result.output.length : 'N/A'}`);
       
       if (result.output && Array.isArray(result.output) && result.output.length > 0) {
-        logger.info(`🔄 Agente A: Output[0] keys: ${Object.keys(result.output[0]).join(', ')}`);
         
         // Debug detalhado do output[0]
         if (result.output[0].type) {
@@ -509,13 +506,11 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       }
       
       if (content) {
-        logger.info(`🔄 Agente A: Content preview: ${typeof content === 'string' ? content.substring(0, 200) : JSON.stringify(content).substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
         const parsedResult = JSON.parse(cleanContent);
         
         // Extrair tokens da resposta (Responses API)
         // Debug: mostrar estrutura de usage
-        logger.info(`🔄 Agente A: Usage object: ${JSON.stringify(result.usage || {})}`);
         const tokens = {
           input: result.usage?.prompt_tokens || result.usage?.input_tokens || 0,
           output: result.usage?.completion_tokens || result.usage?.output_tokens || 0
@@ -696,7 +691,6 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
     
     if (content) {
       logger.info(`🔄 Agente B: Content received: ${content.length} chars`);
-      logger.info(`🔄 Agente B: Content preview: ${content.substring(0, 200)}...`);
       const cleanContent = stripCodeFence(content);
       const parsedResult = JSON.parse(cleanContent);
       
@@ -783,7 +777,6 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         
         // Extrair tokens da resposta (Responses API)
         // Debug: mostrar estrutura de usage
-        logger.info(`🔄 Agente C: Usage object: ${JSON.stringify(result.usage || {})}`);
         const tokens = {
           input: result.usage?.prompt_tokens || result.usage?.input_tokens || 0,
           output: result.usage?.completion_tokens || result.usage?.output_tokens || 0
@@ -826,7 +819,6 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       
       if (content) {
         logger.info(`🔄 Agente C: Content received: ${content.length} chars`);
-        logger.info(`🔄 Agente C: Content preview: ${content.substring(0, 200)}...`);
         const cleanContent = stripCodeFence(content);
         const parsedResult = JSON.parse(cleanContent);
         
