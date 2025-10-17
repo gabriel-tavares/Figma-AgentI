@@ -7,6 +7,13 @@
 
 const { Langfuse } = require('langfuse');
 
+const ROUTE_TRACE_NAMES = {
+  '/agent-a': 'agente_a_json',
+  '/agent-b': 'agente_b_vision',
+  '/agent-c': 'agente_c_reconciler',
+  '/orchestrate': 'orquestracao_register'
+};
+
 class LangfuseIntegration {
   constructor() {
     this.enabled = process.env.LANGFUSE_ENABLED === 'true';
@@ -23,6 +30,8 @@ class LangfuseIntegration {
         publicKey: process.env.LANGFUSE_PUBLIC_KEY,
         secretKey: process.env.LANGFUSE_SECRET_KEY,
         baseUrl: process.env.LANGFUSE_BASE_URL,
+        environment: process.env.NODE_ENV ?? 'prod',
+        release: process.env.COMMIT_SHA ?? process.env.npm_package_version,
         flushAt: 1, // Enviar imediatamente
         flushInterval: 1000, // Enviar a cada 1 segundo
         sessionId: 'figma-agenti-session', // Session ID fixo para agrupar traces
@@ -47,9 +56,12 @@ class LangfuseIntegration {
 
     try {
       // Criar trace principal seguindo o padrão do Langfuse
+      const traceName =
+        ROUTE_TRACE_NAMES[traceData.route] ||
+        `figma-agenti-${(traceData.route || 'analysis').replace(/^\//, '').replace(/\//g, '_') || 'analysis'}`;
       const trace = this.client.trace({
         id: traceData.traceId,
-        name: `figma-agenti-${traceData.route || 'analysis'}`,
+        name: traceName,
         sessionId: 'figma-agenti-session',
         userId: 'figma-user',
         metadata: {

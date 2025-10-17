@@ -27,51 +27,6 @@ RUN npm ci --only=production && \
 # Copiar código fonte
 COPY . .
 
-# Criar arquivo .env com variáveis de ambiente
-RUN echo "NODE_ENV=production" > .env && \
-    echo "PORT=3000" >> .env && \
-    echo "OPENAI_API_KEY=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" >> .env && \
-    echo "OPENROUTER_API_KEY=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" >> .env && \
-    echo "USE_RESPONSES=true" >> .env && \
-    echo "VECTOR_STORE_ID=vs_6893c02afcb081918c69241839c8ca54" >> .env && \
-    echo "USE_RAG=true" >> .env && \
-    echo "" >> .env && \
-    echo "# MODELOS DE IA - Baseado nos limites gratuitos diários" >> .env && \
-    echo "# TIER 1: 250k tokens/dia - Modelos premium" >> .env && \
-    echo "# gpt-5, gpt-5-chat-latest, gpt-4.1, gpt-4o, o1, o3" >> .env && \
-    echo "# TIER 2: 2.5M tokens/dia - Modelos mini/nano" >> .env && \
-    echo "# gpt-5-mini, gpt-5-nano, gpt-4.1-mini, gpt-4.1-nano, gpt-4o-mini, o1-mini, o3-mini, o4-mini, codex-mini-latest" >> .env && \
-    echo "" >> .env && \
-    echo "# Vision API - Análise de imagens (TIER 2 recomendado)" >> .env && \
-    echo "MODELO_VISION=gpt-4o-mini" >> .env && \
-    echo "" >> .env && \
-    echo "# Análise Heurística - Texto (TIER 1 para qualidade, TIER 2 para volume)" >> .env && \
-    echo "MODELO_TEXTO=gpt-5-mini" >> .env && \
-    echo "" >> .env && \
-    echo "# Modelos dos Agentes Orquestrados" >> .env && \
-    echo "MODELO_AGENTE_A=gpt-5-mini" >> .env && \
-    echo "MODELO_AGENTE_B=gpt-4o-mini" >> .env && \
-    echo "MODELO_AGENTE_C=o3-mini" >> .env && \
-    echo "" >> .env && \
-    echo "# Configurações de temperatura e tokens" >> .env && \
-    echo "TEMP_VISION=0.1" >> .env && \
-    echo "TEMP_TEXTO=0.2" >> .env && \
-    echo "MAX_TOKENS_VISION=4096" >> .env && \
-    echo "MAX_TOKENS_TEXTO=50000" >> .env && \
-    echo "" >> .env && \
-    echo "# Outras configurações" >> .env && \
-    echo "CLEANUP_TEMP_FILES=true" >> .env && \
-    echo "DEBUG_FILES_RETENTION_DAYS=7" >> .env && \
-    echo "RETRY_ATTEMPTS=3" >> .env && \
-    echo "RETRY_DELAY=1000" >> .env && \
-    echo "CORS_ORIGIN=https://www.figma.com" >> .env && \
-    echo "LOG_LEVEL=info" >> .env && \
-    echo "LOG_TO_FILE=true" >> .env && \
-    echo "REQUEST_TIMEOUT=30000" >> .env && \
-    echo "ANALYZE_IMAGES=true" >> .env && \
-    echo "REASONING_EFFORT=medium" >> .env && \
-    echo "MAXTOK_TEXTO=20000" >> .env
-
 # Criar diretórios necessários e ajustar permissões
 RUN mkdir -p debug_responses debug_layouts debug_vision temp && \
     chown -R nodejs:nodejs /app && \

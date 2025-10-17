@@ -12,6 +12,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - LANGFUSE_ENABLED=${LANGFUSE_ENABLED:-true}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_BASE_URL=${LANGFUSE_BASE_URL:-https://langfuse.uxday.com.br}
     volumes:
       # Volume para logs persistentes
       - ./logs:/app/logs
