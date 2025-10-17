@@ -1,5 +1,7 @@
 # 🎨 Figma-AgentI
 
+oi
+
 > Plugin Figma para análise heurística de interfaces usando IA
 
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
