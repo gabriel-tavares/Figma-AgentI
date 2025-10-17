@@ -14,11 +14,10 @@ figma.showUI(__html__, { width: 380, height: 385 });
 // Endpoint do backend que processa a imagem e retorna o texto no formato 1–8
 // Sistema de detecção automática de ambiente
 function getApiUrl() {
-    // No ambiente do Figma, sempre usar localhost para desenvolvimento
-    // Para produção, mudar manualmente para https://agenti.uxday.com.br/analisar
-    return "http://localhost:3000/analisar";
-    // Para produção, descomente a linha abaixo e comente a linha acima:
-    // return "https://agenti.uxday.com.br/analisar";
+    // Para produção, usar a API de produção
+    return "https://agenti.uxday.com.br/analisar";
+    // Para desenvolvimento local, descomente a linha abaixo e comente a linha acima:
+    // return "http://localhost:3000/analisar";
 }
 const API_URL = getApiUrl();
 function hexFromPaint(paint) {
