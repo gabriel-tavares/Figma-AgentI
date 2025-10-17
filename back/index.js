@@ -1,4 +1,4 @@
-﻿/** 🌱 Carrega variáveis de ambiente do arquivo .env */
+/** 🌱 Carrega variáveis de ambiente do arquivo .env */
 require("dotenv").config();
 
 // Sistema de logging padronizado
@@ -1641,6 +1641,50 @@ class PreReconciliationValidator {
   }
 }
 
+/**
+ * =========================
+ *  Detecção de Imagem Pura
+ * =========================
+ * Detecta se a tela selecionada é uma imagem pura (print de layout para benchmark)
+ * Neste caso, apenas o Agente B trabalha e o Agente C faz a validação final
+ */
+function isPureImageScreen(figmaSpec, imageBase64) {
+  // Critérios para detectar imagem pura:
+  // 1. Tem imagem base64 mas poucos ou nenhum componente estruturado
+  // 2. FigmaSpec tem poucos componentes (menos de 5)
+  // 3. Componentes são principalmente imagens ou elementos simples
+  // 4. Não há estrutura complexa de layout
+  
+  if (!imageBase64) {
+    return false; // Sem imagem, não é imagem pura
+  }
+  
+  if (!figmaSpec || !figmaSpec.components) {
+    return true; // Sem estrutura, provavelmente é imagem pura
+  }
+  
+  const componentCount = figmaSpec.components.length;
+  const imageComponents = figmaSpec.components.filter(comp => 
+    comp.type === 'RECTANGLE' && 
+    comp.fills && 
+    comp.fills.some(f => f.type === 'IMAGE')
+  );
+  
+  // Se tem poucos componentes e a maioria são imagens, é provável que seja imagem pura
+  const isLowComponentCount = componentCount < 5;
+  const isMostlyImages = imageComponents.length > componentCount * 0.6;
+  const hasMinimalStructure = componentCount < 3;
+  
+  // Se tem estrutura mínima OU (poucos componentes E maioria são imagens)
+  const isPureImage = hasMinimalStructure || (isLowComponentCount && isMostlyImages);
+  
+  if (isPureImage) {
+    logger.info(`🖼️ Imagem pura detectada: ${componentCount} componentes, ${imageComponents.length} imagens`);
+  }
+  
+  return isPureImage;
+}
+
 // Orquestrador Principal - Coordena A, B e C
 async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId, group, useRag = false) {
   logger.info(`🎭 Orquestrador iniciado: ${group}`);
@@ -1648,6 +1692,12 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
   // ENRIQUECER FIGMASPEC COM CONTEXTO DE CLIPPING
   const enrichedFigmaSpec = enrichFigmaSpecWithClippingContext(figmaSpec);
   logger.info(`🔄 FigmaSpec enriquecido: ${enrichedFigmaSpec.components?.length || 0} componentes processados`);
+  
+  // DETECTAR SE É IMAGEM PURA
+  const isPureImage = isPureImageScreen(enrichedFigmaSpec, imageBase64);
+  if (isPureImage) {
+    logger.info(`🖼️ REGRA ESPECIAL: Imagem pura detectada - pulando Agente A, apenas B + C`);
+  }
   
   const startTime = performance.now();
   let achadosA = null, achadosB = null, achadosFinal = null;
@@ -1678,26 +1728,16 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
       timeRAG = performance.now() - ragStart;
     }
     
-    // Executar Agente A e B em paralelo (ambos com RAG compartilhado)
-    logger.info(`   🔄 Executando Agente A (JSON) e B (Vision) em paralelo...`);
+    // Executar agentes baseado no tipo de tela
+    let resultA, resultB;
     
-    const agenteAStart = performance.now();
-    const agenteBStart = performance.now();
-    
-    const [resultA, resultB] = await Promise.allSettled([
-      (async () => {
-        const agenteAStartIndividual = performance.now();
-        const result = await runAgentA(enrichedFigmaSpec, metodo, vectorStoreId, useRag);
-        const agenteAEndIndividual = performance.now();
-        timeAgenteA = agenteAEndIndividual - agenteAStartIndividual;
-        
-        if (result && result.tokens) {
-          tokensA = result.tokens;
-          return result.data;
-        }
-        return result;
-      })(),
-      imageBase64 ? (async () => {
+    if (isPureImage) {
+      // REGRA ESPECIAL: Imagem pura - apenas Agente B
+      logger.info(`   🔄 Executando apenas Agente B (Vision) para imagem pura...`);
+      
+      const agenteBStart = performance.now();
+      
+      if (imageBase64) {
         const agenteBStartIndividual = performance.now();
         const result = await runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContext);
         const agenteBEndIndividual = performance.now();
@@ -1705,14 +1745,62 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
         
         if (result && result.tokens) {
           tokensB = result.tokens;
-          return result.data;
+          resultB = { status: 'fulfilled', value: result.data };
+        } else {
+          resultB = { status: 'fulfilled', value: result };
         }
-        return result;
-      })() : Promise.resolve(null)
-    ]);
+      } else {
+        resultB = { status: 'rejected', reason: new Error('Sem imagem para análise') };
+      }
+      
+      // Agente A não executa para imagem pura
+      resultA = { status: 'rejected', reason: new Error('Pulado - imagem pura') };
+      achadosA = { achados: [] };
+      
+    } else {
+      // EXECUÇÃO NORMAL: Agente A e B em paralelo
+      logger.info(`   🔄 Executando Agente A (JSON) e B (Vision) em paralelo...`);
+      
+      const agenteAStart = performance.now();
+      const agenteBStart = performance.now();
+      
+      const [resultAPromise, resultBPromise] = await Promise.allSettled([
+        (async () => {
+          const agenteAStartIndividual = performance.now();
+          const result = await runAgentA(enrichedFigmaSpec, metodo, vectorStoreId, useRag);
+          const agenteAEndIndividual = performance.now();
+          timeAgenteA = agenteAEndIndividual - agenteAStartIndividual;
+          
+          if (result && result.tokens) {
+            tokensA = result.tokens;
+            return result.data;
+          }
+          return result;
+        })(),
+        imageBase64 ? (async () => {
+          const agenteBStartIndividual = performance.now();
+          const result = await runAgentB(imageBase64, metodo, vectorStoreId, useRag, ragContext);
+          const agenteBEndIndividual = performance.now();
+          timeAgenteB = agenteBEndIndividual - agenteBStartIndividual;
+          
+          if (result && result.tokens) {
+            tokensB = result.tokens;
+            return result.data;
+          }
+          return result;
+        })() : Promise.resolve(null)
+      ]);
+      
+      resultA = resultAPromise;
+      resultB = resultBPromise;
+    }
     
     // Processar resultados do Agente A
-    if (resultA.status === 'fulfilled' && resultA.value) {
+    if (isPureImage) {
+      // Para imagem pura, Agente A não executa
+      logger.info(`   ⏭️ Agente A: pulado (imagem pura)`);
+      achadosA = { achados: [] };
+    } else if (resultA.status === 'fulfilled' && resultA.value) {
       if (resultA.value.data) {
         achadosA = resultA.value.data;
         tokensA = resultA.value.tokens;
@@ -1756,19 +1844,35 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     // Validação leve antes do Reconciler
     const totalAchados = (achadosA.achados?.length || 0) + (achadosB.achados?.length || 0);
     if (totalAchados === 0) {
-      logger.warn(`   ⚠️ Nenhum achado dos agentes A e B - usando fallback`);
-      return {
-        achados: [{
-          constatacao_hipotese: "Hipótese",
-          titulo_card: "Análise não disponível",
-          heuristica_metodo: "Sistema — Geral",
-          descricao: "Não foi possível gerar análise com os agentes especializados. Tente novamente ou verifique a configuração.",
-          sugestao_melhoria: "1) Verificar conectividade com APIs. 2) Validar configuração dos modelos. 3) Tentar novamente.",
-          justificativa: "Garantir funcionamento adequado do sistema de análise.",
-          severidade: "médio",
-          referencias: ["Troubleshooting — Sistema"]
-        }]
-      };
+      if (isPureImage) {
+        logger.warn(`   ⚠️ Nenhum achado do Agente B (imagem pura) - usando fallback`);
+        return {
+          achados: [{
+            constatacao_hipotese: "Hipótese",
+            titulo_card: "Análise de imagem pura não disponível",
+            heuristica_metodo: "Sistema — Imagem Pura",
+            descricao: "Não foi possível gerar análise da imagem pura. Verifique se a imagem contém elementos analisáveis ou tente com uma tela estruturada.",
+            sugestao_melhoria: "1) Verificar se a imagem contém interface analisável. 2) Tentar com tela estruturada do Figma. 3) Verificar qualidade da imagem.",
+            justificativa: "Imagens puras (prints de layout) podem não conter elementos estruturados para análise heurística.",
+            severidade: "baixo",
+            referencias: ["Análise — Imagem Pura"]
+          }]
+        };
+      } else {
+        logger.warn(`   ⚠️ Nenhum achado dos agentes A e B - usando fallback`);
+        return {
+          achados: [{
+            constatacao_hipotese: "Hipótese",
+            titulo_card: "Análise não disponível",
+            heuristica_metodo: "Sistema — Geral",
+            descricao: "Não foi possível gerar análise com os agentes especializados. Tente novamente ou verifique a configuração.",
+            sugestao_melhoria: "1) Verificar conectividade com APIs. 2) Validar configuração dos modelos. 3) Tentar novamente.",
+            justificativa: "Garantir funcionamento adequado do sistema de análise.",
+            severidade: "médio",
+            referencias: ["Troubleshooting — Sistema"]
+          }]
+        };
+      }
     }
     
     // Executar Agente C (Reconciler)
@@ -1805,8 +1909,15 @@ async function orchestrateAnalysis(figmaSpec, imageBase64, metodo, vectorStoreId
     // Logs detalhados de performance por agente
     logger.info(`[ITEM ${group}] Timer Detalhado:`);
     logger.info(`   📊 RAG: ${(timeRAG / 1000).toFixed(2)}s`);
-    logger.info(`   🔄 Agente A (JSON): ${(timeAgenteA / 1000).toFixed(2)}s → ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'} | Tokens: ${tokensA.input || 0}→${tokensA.output || 0}`);
-    logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'} | Tokens: ${tokensB.input || 0}→${tokensB.output || 0}`);
+    
+    if (isPureImage) {
+      logger.info(`   🔄 Agente A (JSON): PULADO - Imagem pura`);
+      logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : 'falhou'} | Tokens: ${tokensB.input || 0}→${tokensB.output || 0}`);
+    } else {
+      logger.info(`   🔄 Agente A (JSON): ${(timeAgenteA / 1000).toFixed(2)}s → ${achadosA ? `${achadosA.achados?.length || 0} achados` : 'falhou'} | Tokens: ${tokensA.input || 0}→${tokensA.output || 0}`);
+      logger.info(`   🔄 Agente B (Vision): ${(timeAgenteB / 1000).toFixed(2)}s → ${achadosB ? `${achadosB.achados?.length || 0} achados` : imageBase64 ? 'falhou' : 'pulado'} | Tokens: ${tokensB.input || 0}→${tokensB.output || 0}`);
+    }
+    
     logger.info(`   🔄 Agente C (Reconciler): ${(timeAgenteC / 1000).toFixed(2)}s → ${achadosFinal ? `${achadosFinal.achados?.length || 0} achados finais` : 'falhou'} | Tokens: ${tokensC.input || 0}→${tokensC.output || 0}`);
     
     const totalTokensInput = (tokensA.input || 0) + (tokensB.input || 0) + (tokensC.input || 0);
