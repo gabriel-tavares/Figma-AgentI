@@ -20,6 +20,7 @@
     "express": "^5.1.0",
     "form-data": "^4.0.4",
     "index.js": "^0.0.3",
+    "langfuse": "^3.38.6",
     "node-fetch": "^2.7.0",
     "probe-image-size": "^7.2.3"
   },

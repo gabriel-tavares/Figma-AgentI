@@ -55,7 +55,8 @@ const {
   emitTrace, 
   createTrace, 
   analyzeSpans, 
-  checkPerformanceBudget 
+  checkPerformanceBudget,
+  shutdownLangfuse
 } = require('./tracing');
 const sec = (ms) => Number(ms/1000).toFixed(2);
 const crypto = require('crypto');
@@ -421,8 +422,18 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     });
     
     trace.addSpan(prep.span);
+    
+    // Fases granulares para Agente A
     metrics.startPhase('Carregar Prompt');
     metrics.endPhase('Carregar Prompt');
+    
+    metrics.startPhase('Serializar JSON');
+    const serializedData = JSON.stringify(figmaSpec);
+    metrics.endPhase('Serializar JSON');
+    
+    metrics.startPhase('Montar Prompt Final');
+    const finalPrompt = [prep.result.instruction, "", "DADOS:", prep.result.mensagem].join("\n");
+    metrics.endPhase('Montar Prompt Final');
     
     // RAG FETCH (se habilitado)
     let ragContext = null;
@@ -464,6 +475,8 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
       const isGPT5 = /^gpt-5/i.test(MODELO_AGENTE_A);
       const isO3 = /^o3/i.test(MODELO_AGENTE_A);
       
+      // Métricas granulares para chamada da API
+      metrics.startPhase('Preparar Request Body');
       let response;
       
       if (isGPT5) {
@@ -475,16 +488,23 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
           text: { verbosity: "medium" }
         };
         
+        metrics.endPhase('Preparar Request Body');
+        metrics.startPhase('Serializar Request Body');
+        const requestBodyJson = JSON.stringify(requestBody);
+        metrics.endPhase('Serializar Request Body');
+        
         logger.info(`🔄 Agente A: Usando Responses API para ${MODELO_AGENTE_A}`);
         
+        metrics.startPhase('Enviar Request');
         response = await fetch("https://api.openai.com/v1/responses", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify(requestBody)
+          body: requestBodyJson
         });
+        metrics.endPhase('Enviar Request');
       } else {
         // Outros modelos usam Chat Completions API
         const requestBody = {
@@ -519,23 +539,33 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
       
+      metrics.startPhase('Deserializar Response');
       const result = await response.json();
+      metrics.endPhase('Deserializar Response');
       
       // Debug: mostrar estrutura da resposta
       logger.info(`🔄 Agente A: Response status: ${response.status}`);
       logger.info(`🔄 Agente A: Response structure: ${JSON.stringify(result, null, 2).substring(0, 500)}...`);
       
+      // Debug: mostrar estrutura de usage
+      logger.info(`🔄 Agente A: Usage structure: ${JSON.stringify(result.usage, null, 2)}`);
+      
+      metrics.startPhase('Extrair Conteúdo');
       let content;
       let usage;
       
       if (isGPT5) {
-        // Responses API retorna output_text
-        content = result.output_text;
+        // Responses API retorna output[1].content[0].text
+        content = result.output?.[1]?.content?.[0]?.text;
         usage = result.usage;
+        logger.info(`🔄 Agente A: GPT-5 content extracted: ${content ? content.length : 0} chars`);
+        logger.info(`🔄 Agente A: GPT-5 usage: ${JSON.stringify(usage, null, 2)}`);
       } else {
         // Chat Completions API retorna choices[0].message.content
         content = result.choices?.[0]?.message?.content;
         usage = result.usage;
+        logger.info(`🔄 Agente A: Chat Completions content extracted: ${content ? content.length : 0} chars`);
+        logger.info(`🔄 Agente A: Chat Completions usage: ${JSON.stringify(usage, null, 2)}`);
       }
       
       if (!content) {
@@ -544,6 +574,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         throw new Error('Nenhum conteúdo recebido do modelo');
       }
       
+      metrics.endPhase('Extrair Conteúdo');
       logger.info(`🔄 Agente A: Content received: ${content.length} chars`);
       
       return {
@@ -566,14 +597,39 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         throw new Error('Nenhum conteúdo recebido do modelo');
       }
       
+      metrics.startPhase('Limpar Code Fence');
       const cleanContent = stripCodeFence(modelCall.result.content);
-      const parsedResult = JSON.parse(cleanContent);
+      metrics.endPhase('Limpar Code Fence');
       
-      return {
+      metrics.startPhase('Parse JSON');
+      let parsedResult;
+      try {
+        parsedResult = JSON.parse(cleanContent);
+      } catch (jsonError) {
+        logger.error(`❌ Agente A: Erro ao fazer parse do JSON: ${jsonError.message}`);
+        logger.error(`❌ Agente A: Conteúdo limpo (primeiros 500 chars): ${cleanContent.substring(0, 500)}`);
+        logger.error(`❌ Agente A: Conteúdo limpo (últimos 500 chars): ${cleanContent.substring(Math.max(0, cleanContent.length - 500))}`);
+        
+        // Tentar corrigir JSON malformado
+        const fixedContent = fixMalformedJSON(cleanContent);
+        if (fixedContent) {
+          logger.info(`🔄 Agente A: Tentando corrigir JSON malformado...`);
+          parsedResult = JSON.parse(fixedContent);
+        } else {
+          throw jsonError;
+        }
+      }
+      metrics.endPhase('Parse JSON');
+      
+      metrics.startPhase('Processar Conteúdo');
+      const result = {
         achados: parsedResult.achados || [],
         contentLength: modelCall.result.content.length,
         cleanContentLength: cleanContent.length
       };
+      metrics.endPhase('Processar Conteúdo');
+      
+      return result;
     }, {
       contentLength: modelCall.result.content?.length || 0
     });
@@ -588,6 +644,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     trace.setTokens(promptTokens, outputTokens);
     
     // Finalizar métricas
+    metrics.setModel(MODELO_AGENTE_A);
     metrics.setTokens(promptTokens, outputTokens, {
       'Prompt Base': Math.ceil(prep.result.instruction.length / 4),
       'Dados Figma': Math.ceil(prep.result.figmaData.length / 4),
@@ -599,7 +656,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     metrics.end();
     
     // Emitir trace
-    emitTrace(trace);
+    await emitTrace(trace);
     
     // Verificar budget de performance
     checkPerformanceBudget(trace);
@@ -621,7 +678,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
   } catch (error) {
     logger.error(`❌ Agente A falhou: ${error.message}`);
     trace.addSpan(new Span('error', 0, { error: error.message }));
-    emitTrace(trace);
+    await emitTrace(trace);
     metrics.end();
     return null;
   }
@@ -689,6 +746,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
       logger.info(`🔄 Agente B: Usando contexto RAG compartilhado (${ragContext.length} chars)`);
       finalPrompt += `\n\nCONTEXTO HEURÍSTICAS VISUAIS:\n${ragContext}`;
     } else if (useRag && vectorStoreId) {
+      logger.info(`🔄 Agente B: RAG compartilhado não disponível, usando fallback...`);
       // Fallback: buscar RAG se não foi compartilhado
       logger.info(`🔄 Agente B: Buscando contexto RAG para ${metodo}...`);
       
@@ -782,10 +840,14 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
       };
       
       // Definir breakdown detalhado de tokens
+      // Usar o contexto RAG que foi realmente usado (compartilhado ou fallback)
+      const actualRagContext = ragContext || (finalPrompt.includes('CONTEXTO HEURÍSTICAS VISUAIS:') ? 
+        finalPrompt.split('CONTEXTO HEURÍSTICAS VISUAIS:')[1] : '');
+      
       const tokenBreakdown = {
         'Prompt Base': instructionTokens,
         'Imagem': imageTokens,
-        'RAG Context': ragContext ? Math.ceil(ragContext.length / 4) : 0,
+        'RAG Context': actualRagContext ? Math.ceil(actualRagContext.length / 4) : 0,
         'Total Entrada': tokens.input,
         'Saída': tokens.output
       };
@@ -877,6 +939,10 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       }
       
       const result = await response.json();
+      
+      // Debug: mostrar estrutura de usage do Agente C
+      logger.info(`🔄 Agente C: Usage structure: ${JSON.stringify(result.usage, null, 2)}`);
+      
       const content = result.output?.[1]?.content?.[0]?.text || result.output?.[0]?.content?.[0]?.text?.value || result.output_text;
       
       if (content) {
@@ -888,7 +954,23 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         metrics.endPhase('Limpar Code Fence');
         
         metrics.startPhase('Parse JSON');
-        const parsedResult = JSON.parse(cleanContent);
+        let parsedResult;
+        try {
+          parsedResult = JSON.parse(cleanContent);
+        } catch (jsonError) {
+          logger.error(`❌ Agente C: Erro ao fazer parse do JSON: ${jsonError.message}`);
+          logger.error(`❌ Agente C: Conteúdo limpo (primeiros 500 chars): ${cleanContent.substring(0, 500)}`);
+          logger.error(`❌ Agente C: Conteúdo limpo (últimos 500 chars): ${cleanContent.substring(Math.max(0, cleanContent.length - 500))}`);
+          
+          // Tentar corrigir JSON malformado
+          const fixedContent = fixMalformedJSON(cleanContent);
+          if (fixedContent) {
+            logger.info(`🔄 Agente C: Tentando corrigir JSON malformado...`);
+            parsedResult = JSON.parse(fixedContent);
+          } else {
+            throw jsonError;
+          }
+        }
         metrics.endPhase('Parse JSON');
         
         metrics.endPhase('Processar Conteúdo');
@@ -1964,6 +2046,45 @@ if (!OPENAI_API_KEY) {
   return s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
 };
 
+// Função para tentar corrigir JSON malformado
+const fixMalformedJSON = (content) => {
+  try {
+    // Tentar correções comuns
+    let fixed = content;
+    
+    // 1. Remover caracteres de controle invisíveis
+    fixed = fixed.replace(/[\x00-\x1F\x7F]/g, '');
+    
+    // 2. Corrigir strings não terminadas (adicionar aspas no final se necessário)
+    const openQuotes = (fixed.match(/"/g) || []).length;
+    if (openQuotes % 2 !== 0) {
+      // Número ímpar de aspas - adicionar aspas no final
+      fixed = fixed.trim() + '"';
+    }
+    
+    // 3. Corrigir vírgulas extras antes de fechamentos
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    
+    // 4. Corrigir vírgulas faltando entre objetos
+    fixed = fixed.replace(/}(\s*){/g, '},$1{');
+    
+    // 5. Garantir que termina com } ou ]
+    if (!fixed.trim().endsWith('}') && !fixed.trim().endsWith(']')) {
+      // Tentar adicionar fechamento baseado no contexto
+      if (fixed.includes('"achados"')) {
+        fixed = fixed.trim() + '}';
+      }
+    }
+    
+    // Testar se o JSON corrigido é válido
+    JSON.parse(fixed);
+    return fixed;
+  } catch (e) {
+    logger.warn(`🔄 Não foi possível corrigir JSON malformado: ${e.message}`);
+    return null;
+  }
+};
+
 // Carrega prompts dos agentes
 function loadAgentPrompt(agentName) {
   try {
@@ -2775,6 +2896,19 @@ app.listen(PORT, async () => {
 }).on('error', (err) => {
   logger.error('Erro ao iniciar servidor:', err.message);
   process.exit(1);
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  logger.info('🔄 Recebido SIGINT, encerrando servidor...');
+  await shutdownLangfuse();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  logger.info('🔄 Recebido SIGTERM, encerrando servidor...');
+  await shutdownLangfuse();
+  process.exit(0);
 });
 
 // Capturar erros não tratados

@@ -11,22 +11,38 @@ const crypto = require('crypto');
 
 const sec = (ms) => Number(ms/1000).toFixed(3); // Aumentar precisão para 3 casas decimais
 
+// Função de alta resolução para timing preciso (microssegundos)
+const hr = () => Number(process.hrtime.bigint() / 1000000n); // ms com precisão de microssegundos
+
 class AgentMetrics {
   constructor(agentName) {
     this.agentName = agentName;
+    this.requestId = crypto.randomUUID();
     this.startTime = null;
     this.endTime = null;
+    this.timestamps = {
+      start: null,
+      end: null
+    };
     this.phases = {};
     this.tokens = {
       input: 0,
       output: 0,
       breakdown: {}
     };
+    this.networkTime = 0;
+    this.streamingMetrics = {
+      timeToFirstToken: null,
+      generationTime: null,
+      tokensPerSecond: null
+    };
+    this.model = null;
+    this.status = 'pending';
   }
 
   startPhase(phaseName) {
     this.phases[phaseName] = {
-      startTime: performance.now(),
+      startTime: hr(), // Usar alta resolução
       endTime: null,
       duration: 0
     };
@@ -40,7 +56,7 @@ class AgentMetrics {
 
   endPhase(phaseName) {
     if (this.phases[phaseName]) {
-      this.phases[phaseName].endTime = performance.now();
+      this.phases[phaseName].endTime = hr();
       this.phases[phaseName].duration = this.phases[phaseName].endTime - this.phases[phaseName].startTime;
     }
   }
@@ -101,15 +117,64 @@ class AgentMetrics {
   }
 
   start() {
-    this.startTime = performance.now();
+    this.startTime = hr();
+    this.timestamps.start = new Date().toISOString();
+    this.status = 'running';
   }
 
   end() {
-    this.endTime = performance.now();
+    this.endTime = hr();
+    this.timestamps.end = new Date().toISOString();
+    this.status = 'completed';
+  }
+
+  setModel(modelName) {
+    this.model = modelName;
+  }
+
+  setStreamingMetrics(timeToFirstToken, generationTime, tokensPerSecond) {
+    this.streamingMetrics = {
+      timeToFirstToken,
+      generationTime,
+      tokensPerSecond
+    };
   }
 
   getTotalDuration() {
     return this.endTime - this.startTime;
+  }
+
+  // Gerar log estruturado no formato recomendado pelo ChatGPT
+  generateStructuredLog() {
+    const metrics = {};
+    
+    // Converter fases para formato de métricas
+    Object.entries(this.phases).forEach(([name, phase]) => {
+      const key = name.toLowerCase().replace(/\s+/g, '_') + '_ms';
+      metrics[key] = Math.round(phase.duration * 100) / 100; // 2 casas decimais
+    });
+
+    return {
+      request_id: this.requestId,
+      agent: this.agentName,
+      model: this.model,
+      timestamps: this.timestamps,
+      metrics_ms: {
+        ...metrics,
+        total_ms: Math.round(this.getTotalDuration() * 100) / 100,
+        network_ms: Math.round(this.networkTime * 100) / 100,
+        ai_processing_ms: Math.round(this.getAIProcessingTime() * 100) / 100
+      },
+      tokens: {
+        input: this.tokens.input,
+        output: this.tokens.output,
+        total: this.tokens.input + this.tokens.output,
+        breakdown: this.tokens.breakdown
+      },
+      streaming: this.streamingMetrics,
+      status: this.status,
+      performance_score: this.calculatePerformanceScore()
+    };
   }
 
   getReport() {
@@ -249,15 +314,21 @@ ${tokensReport}`;
         .digest('hex')
         .substring(0, 8);
       
-      const filename = `${timestamp}_${hash}_metrics_${this.agentName.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
-      const filepath = path.join(debugDir, filename);
-
-      // Gerar e salvar relatório
+      // Salvar relatório formatado (TXT)
+      const txtFilename = `${timestamp}_${hash}_metrics_${this.agentName.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+      const txtFilepath = path.join(debugDir, txtFilename);
       const report = this.generateFormattedReport();
-      fs.writeFileSync(filepath, report, 'utf8');
+      fs.writeFileSync(txtFilepath, report, 'utf8');
 
-      console.log(`📊 Relatório de métricas salvo: ${filename}`);
-      return filepath;
+      // Salvar log estruturado (JSON)
+      const jsonFilename = `${timestamp}_${hash}_structured_${this.agentName.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+      const jsonFilepath = path.join(debugDir, jsonFilename);
+      const structuredLog = this.generateStructuredLog();
+      fs.writeFileSync(jsonFilepath, JSON.stringify(structuredLog, null, 2), 'utf8');
+
+      console.log(`📊 Relatório de métricas salvo: ${txtFilename}`);
+      console.log(`📊 Log estruturado salvo: ${jsonFilename}`);
+      return { txt: txtFilepath, json: jsonFilepath };
     } catch (error) {
       console.error(`❌ Erro ao salvar relatório: ${error.message}`);
       return null;

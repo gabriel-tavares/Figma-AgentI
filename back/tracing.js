@@ -9,6 +9,7 @@ const { performance } = require('perf_hooks');
 const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { langfuseIntegration } = require('./langfuse-integration');
 
 // Tipos de spans para padronização
 const SPAN_TYPES = {
@@ -88,7 +89,7 @@ async function timeBlock(name, fn, extra = {}) {
 }
 
 // Emitir trace para logs
-function emitTrace(trace) {
+async function emitTrace(trace) {
   const logEntry = trace.toJSON();
   
   // Log no console
@@ -96,6 +97,13 @@ function emitTrace(trace) {
   
   // Salvar em arquivo para análise posterior
   saveTraceToFile(logEntry);
+  
+  // Enviar para Langfuse (assíncrono, não bloqueia)
+  try {
+    await langfuseIntegration.sendTrace(logEntry);
+  } catch (error) {
+    console.error('❌ Erro ao enviar trace para Langfuse:', error.message);
+  }
 }
 
 // Salvar trace em arquivo para análise
@@ -183,6 +191,33 @@ function checkPerformanceBudget(trace) {
   return alerts;
 }
 
+// Enviar métricas para Langfuse
+async function emitMetrics(metrics) {
+  try {
+    await langfuseIntegration.sendMetrics(metrics);
+  } catch (error) {
+    console.error('❌ Erro ao enviar métricas para Langfuse:', error.message);
+  }
+}
+
+// Enviar dados de agente para Langfuse
+async function emitAgentData(agentName, agentData) {
+  try {
+    await langfuseIntegration.sendAgentData(agentName, agentData);
+  } catch (error) {
+    console.error(`❌ Erro ao enviar dados do agente ${agentName}:`, error.message);
+  }
+}
+
+// Fechar conexão Langfuse
+async function shutdownLangfuse() {
+  try {
+    await langfuseIntegration.shutdown();
+  } catch (error) {
+    console.error('❌ Erro ao fechar Langfuse:', error.message);
+  }
+}
+
 module.exports = {
   SPAN_TYPES,
   Span,
@@ -192,5 +227,8 @@ module.exports = {
   createTrace,
   analyzeSpans,
   checkPerformanceBudget,
-  saveTraceToFile
+  saveTraceToFile,
+  emitMetrics,
+  emitAgentData,
+  shutdownLangfuse
 };
