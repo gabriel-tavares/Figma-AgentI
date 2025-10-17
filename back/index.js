@@ -48,6 +48,46 @@ const { summarizeContextEchoWithAI } = require("./summarize_context_echo");
 const fsp = require('fs/promises');
 const { AgentMetrics } = require('./metrics');
 const { performance } = require('perf_hooks');
+
+// ===========================================
+// CONFIGURAÇÃO DE TIMEOUT PARA REQUISIÇÕES HTTP
+// ===========================================
+
+// Timeouts específicos para diferentes tipos de requisições (ms)
+const TIMEOUTS = {
+  DEFAULT: parseInt(process.env.REQUEST_TIMEOUT) || 30000,
+  OPENAI_API: parseInt(process.env.OPENAI_TIMEOUT) || 60000,  // 60s para APIs da OpenAI
+  GITHUB_API: parseInt(process.env.GITHUB_TIMEOUT) || 15000,  // 15s para GitHub API
+  HEALTH_CHECK: parseInt(process.env.HEALTH_TIMEOUT) || 5000, // 5s para health checks
+  VISION_API: parseInt(process.env.VISION_TIMEOUT) || 120000  // 2min para análise de imagens
+};
+
+// Função utilitária para requisições HTTP com timeout
+const fetchWithTimeout = async (url, options = {}, timeoutMs = TIMEOUTS.DEFAULT) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms for ${url}`);
+    }
+    throw error;
+  }
+};
+
+// Funções específicas para diferentes tipos de requisições
+const fetchOpenAI = (url, options = {}) => fetchWithTimeout(url, options, TIMEOUTS.OPENAI_API);
+const fetchGitHub = (url, options = {}) => fetchWithTimeout(url, options, TIMEOUTS.GITHUB_API);
+const fetchHealth = (url, options = {}) => fetchWithTimeout(url, options, TIMEOUTS.HEALTH_CHECK);
+const fetchVision = (url, options = {}) => fetchWithTimeout(url, options, TIMEOUTS.VISION_API);
 const { 
   SPAN_TYPES, 
   Span,
@@ -213,7 +253,7 @@ INSTRUÇÕES:
 
 Responda APENAS a descrição detalhada, sem explicações adicionais.`;
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      const response = await fetchVision("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: HEADERS_VISION,
         body: JSON.stringify({
@@ -274,7 +314,7 @@ EXEMPLOS DE RESPOSTA DETALHADA:
 
 Responda APENAS a descrição detalhada, sem explicações adicionais.`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetchVision("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: HEADERS_VISION,
       body: JSON.stringify({
@@ -440,7 +480,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
     if (useRag && vectorStoreId) {
       const ragFetch = await timeBlock(SPAN_TYPES.RAG_FETCH, async () => {
         // Simular busca RAG (implementar sua lógica real aqui)
-        const ragResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        const ragResponse = await fetchOpenAI("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -496,7 +536,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         logger.info(`🔄 Agente A: Usando Responses API para ${MODELO_AGENTE_A}`);
         
         metrics.startPhase('Enviar Request');
-        response = await fetch("https://api.openai.com/v1/responses", {
+        response = await fetchOpenAI("https://api.openai.com/v1/responses", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -524,7 +564,7 @@ async function runAgentA(figmaSpec, metodo, vectorStoreId, useRag = false) {
         
         logger.info(`🔄 Agente A: Usando Chat Completions API para ${MODELO_AGENTE_A}`);
         
-        response = await fetch("https://api.openai.com/v1/chat/completions", {
+        response = await fetchOpenAI("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -691,7 +731,7 @@ async function getRagContext(metodo, vectorStoreId) {
     const query = `Explique sobre ${metodo} em análise heurística de interfaces. Inclua critérios, exemplos e como aplicar.`;
     
     // Usar Chat Completions com file_search para buscar contexto
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetchOpenAI("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -752,7 +792,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
       
       // 1ª CHAMADA: Buscar contexto RAG específico para vision
       // NOTA: Chat Completions não suporta file_search, usar apenas texto
-      const ragResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      const ragResponse = await fetchOpenAI("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -788,7 +828,7 @@ async function runAgentB(imageBase64, metodo, vectorStoreId, useRag = false, rag
     // 2ª CHAMADA: Vision com contexto RAG injetado
     logger.info(`🔄 Agente B: Executando análise visual com contexto...`);
     
-    const visionResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    const visionResponse = await fetchVision("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -921,7 +961,7 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
         ...(useRag && vectorStoreId ? { tools: [{ type: "file_search", vector_store_ids: [vectorStoreId] }] } : {})
       };
       
-      const response = await fetch("https://api.openai.com/v1/responses", {
+      const response = await fetchOpenAI("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -1015,7 +1055,7 @@ async function runAgentC(achadosA, achadosB, metodo, vectorStoreId, useRag = fal
       
       logger.info(`🔄 Agente C: Chat Completions ${ragContext ? 'com RAG compartilhado' : 'sem RAG'} - usando conhecimento do modelo`);
       
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      const response = await fetchOpenAI("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -2018,7 +2058,7 @@ async function fetchWithRetry(url, options = {}, retry = { retries: 4, baseDelay
   let lastErr;
   for (let attempt = 0; attempt <= retry.retries; attempt++) {
     try {
-      const res = await fetch(url, options);
+      const res = await fetchWithTimeout(url, options);
       if (res.ok) return res;
 
       // Se não for erro que vale retry ou já esgotou tentativas, levanta
@@ -3052,7 +3092,7 @@ app.get("/status", (req, res) => {
 
 app.get("/ping-openai", async (_req, res) => {
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await fetchHealth("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: HEADERS_VISION,
       body: JSON.stringify({
@@ -3743,7 +3783,7 @@ Seja específico e prático.`
           requestBody.reasoning = modelInfo.reasoning;
         }
 
-        const response = await fetch(apiUrl, {
+        const response = await fetchWithTimeout(apiUrl, {
           method: "POST",
           headers: headers,
           body: JSON.stringify(requestBody)
